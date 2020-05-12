@@ -243,7 +243,9 @@ class Product:
 
 
 if __name__ == '__main__':
-    platform_list = ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video']
+    platform_list = [
+        'android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other'
+    ]
     parser = argparse.ArgumentParser(
         description=
         'Download files from Humble Bundle, based on selected platform')

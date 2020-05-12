@@ -138,12 +138,19 @@ class HumbleApi:
     def check_download(self):
         if self.n_limit is None:
             self.n_limit = 0
-        self.product_list2 = [
-            item for order in self.product_lists[-self.n_limit:]
+        self.product_set2 = {
+            item
+            for order in self.product_lists[-self.n_limit:]
             for item in order.products
-        ]
+        }
+        self.not_downloaded = {
+            item
+            for order in self.product_lists[:-self.n_limit]
+            for item in order.products
+        }
+        self.product_set2 = self.product_set2.difference(self.not_downloaded)
         self.product_set = self.product_set.intersection(
-            self.product_list2)  # will fail now
+            self.product_set2)  # will fail now
         self.download_list = [
             item for item in self.product_set if self.platform == item.platform
         ]

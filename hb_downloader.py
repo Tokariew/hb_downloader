@@ -257,23 +257,25 @@ if __name__ == '__main__':
         help=f'platform to download, valid platforms are: {platform_list}')
     parser.add_argument('-l',
                         '--download-limit',
-                        metavar='download-limit',
+                        metavar='X',
                         type=int,
-                        nargs='?',
+                        default=[0],
+                        nargs=1,
                         help='Parallel download limit, optional.')
     parser.add_argument(
         '-n',
         '--purchase-limit',
-        metavar='purchase-limit',
+        metavar='Y',
         type=int,
-        default=0,
-        nargs='?',
+        default=[0],
+        nargs=1,
         help='number of newest purchases to download, default 0 for all')
     platforms = parser.parse_args().platform
-    d_limit = parser.parse_args().download_limit
-    n_limit = parser.parse_args().purchase_limit
     print(n_limit)
     a = HumbleApi(platforms[0], d_limit, n_limit)
+    d_limit = parser.parse_args().download_limit[0]
+    d_limit = d_limit if d_limit else None
+    n_limit = parser.parse_args().purchase_limit[0]
     a.get_orders()
     a.get_products()
     for platform in platforms:

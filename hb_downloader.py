@@ -68,10 +68,12 @@ class HumbleApi:
     }
     default_params = {"ajax": "true"}
 
-    def __init__(self, platform='audio', d_limit=None, n_limit=None):
+    def __init__(self, platform='audio', d_limit=None, n_limit=None,
+                 revs=True):
         self.platform = platform
         self.d_limit = d_limit
         self.n_limit = n_limit
+        self.reverse = revs
         self.dir = Path('.') / Path(platform)
         self.dir.mkdir(exist_ok=True, parents=True)
         self.session = requests.Session()
@@ -157,7 +159,7 @@ class HumbleApi:
         self.total_size = sum([item.size for item in self.download_list])
         self.human_size = human_size(self.total_size)
         self.downloaded_size = 0
-        self.download_list.sort(key=lambda x: x.size, reverse=True)
+        self.download_list.sort(key=lambda x: x.size, reverse=self.reverse)
 
     def download2(self, *args):
         args = args[0]
@@ -270,12 +272,18 @@ if __name__ == '__main__':
         default=[0],
         nargs=1,
         help='number of newest purchases to download, default 0 for all')
+    parser.add_argument('-s',
+                        '--smallest_first',
+                        action='store_false',
+                        help='switch to download smallest files first')
     platforms = parser.parse_args().platform
     print(n_limit)
     a = HumbleApi(platforms[0], d_limit, n_limit)
     d_limit = parser.parse_args().download_limit[0]
     d_limit = d_limit if d_limit else None
     n_limit = parser.parse_args().purchase_limit[0]
+    revs = parser.parse_args().smallest_first
+    a = HumbleApi(platforms[0], d_limit, n_limit, revs)
     a.get_orders()
     a.get_products()
     for platform in platforms:

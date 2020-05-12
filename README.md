@@ -31,8 +31,7 @@ Edit 15th line and provide _simpleauth_sess cookie from browser between apostrop
 
 ```
 python hb_downloader.py --help
-usage: hb_downloader.py [-h] [-l [download-limit]] [-n [purchase-limit]]
-                        platform [platform ...]
+usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] platform [platform ...]
 
 Download files from Humble Bundle, based on selected platform
 
@@ -42,11 +41,12 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -l [download-limit], --download-limit [download-limit]
+  -l X, --download-limit X
                         Parallel download limit, optional.
-  -n [purchase-limit], --purchase-limit [purchase-limit]
+  -n Y, --purchase-limit Y
                         number of newest purchases to download, default 0 for
                         all
+  -s, --smallest_first  switch to download smallest files first
 ```
 
 You can download multiple platforms one after another for example to download all audio albums, and after that all ebook files:

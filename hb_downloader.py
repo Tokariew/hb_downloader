@@ -56,13 +56,18 @@ def download(url, file_name):
 
 
 def read_yaml():
-    with open('config.yaml') as yamfile:
-        cfg = yaml.safe_load(yamfile)
-    return cfg
+    try:
+        with open('config.yaml') as yamfile:
+            cfg = yaml.safe_load(yamfile)
+        return cfg
+    except FileNotFoundError:
+        Path('config.yaml').write_text(Path('example_config.yaml').read_text())
 
 
 def parse_config(parser):
     cfg = read_yaml()
+    if cfg is None:
+        return []
     platforms = parser.parse_args().platform
     download_limit = parser.parse_args().download_limit[0]
     download_limit = download_limit if download_limit else None
@@ -286,10 +291,13 @@ if __name__ == '__main__':
                         help='switch to download smallest files first')
 
     cfg = parse_config(parser)
-    platforms, *cfg = cfg
-    if cfg[-1] == '':
+    try:
+        cookie = cfg[-1]
+        test = cookie[0]  # this catch empty string
+    except IndexError:
         print('No valid session_cookie, please provide session_cookie in config.yaml')
     else:
+        platforms, *cfg = cfg
         a = HumbleApi(platforms[0], *cfg)
         a.get_orders()
         a.get_products()

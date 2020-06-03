@@ -1,7 +1,9 @@
 import argparse
 import hashlib
 import http.cookiejar
+import os
 import re
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from math import floor, log2
@@ -15,6 +17,14 @@ try:
     import ruamel_yaml as yaml
 except ModuleNotFoundError:
     import yaml
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+
+    return os.path.join(os.path.abspath("."), relative_path)
 
 
 def round10(x):
@@ -61,7 +71,7 @@ def read_yaml():
             cfg = yaml.safe_load(yamfile)
         return cfg
     except FileNotFoundError:
-        Path('config.yaml').write_text(Path('example_config.yaml').read_text())
+        Path('config.yaml').write_text(Path(resource_path('example_config.yaml')).read_text())
 
 
 def parse_config(parser):

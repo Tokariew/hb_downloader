@@ -65,6 +65,10 @@ def download(url, file_name):
     time.sleep(.1)
 
 
+def c_error(text):
+    return colored(text, 'red', 'on_white')
+
+
 def read_yaml():
     try:
         with open('config.yaml') as yamfile:
@@ -136,7 +140,7 @@ class HumbleApi:
         if platform != self.platform:
             self.platform = platform
             self.dir = self.dir.parent / Path(platform)
-            self.dir.mkdir(exist_ok=True, parents=True)
+        self.dir.mkdir(exist_ok=True, parents=True)
 
     def get_orders(self):
         r = self.session.request('GET', self.ORDER_LIST_URL)
@@ -214,12 +218,16 @@ class HumbleApi:
         try:
             download(item.url, filename)
         except FileNotFoundError:
-            print(item.url)
-        self.downloaded_size += item.size
-        info = f'Downloaded {filename.name}, progress: ' + colored(
-            f'{human_size(self.downloaded_size)}/{self.human_size} ', 'cyan') + colored(
-                f'{i+1}/{self.total_items}', 'magenta')
-        print(info)
+            Err_msg = 'Probably 260 Character Path Limit on Windows.'
+            info = c_error('Error: ') + "Can't Download " + c_error(
+                f'{item.name} ') + 'from ' + c_error(f'{item.hb_name}\n{Err_msg}')
+            print(info)
+        else:
+            self.downloaded_size += item.size
+            info = f'Downloaded {filename.name}, progress: ' + colored(
+                f'{human_size(self.downloaded_size)}/{self.human_size} ', 'cyan') + colored(
+                    f'{i+1}/{self.total_items}', 'magenta')
+            print(info)
 
     def downloads(self):
         self.check_download()

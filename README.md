@@ -25,6 +25,8 @@ pip install termcolor python-dateutil python-dateutil ruamel.yaml
 
 ```
 
+For Windows systems script require to remove 260 path name limit, otherwise download of some files will fail or script will try to redownload files with long file names.
+
 ## Usage
 
 Make config.yaml file based on example_config.yaml and provide _simpleauth_sess cookie from browser between apostrophes.

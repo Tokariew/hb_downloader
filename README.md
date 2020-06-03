@@ -21,7 +21,7 @@ Python in version 3.6 of higher, accesible in command line
 Script require few additional non-standard packages. Install them with
 
 ```
-pip install termcolor python-dateutil python-dateutil
+pip install termcolor python-dateutil python-dateutil ruamel.yaml
 
 ```
 

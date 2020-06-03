@@ -11,8 +11,10 @@ import requests
 from dateutil import parser as dt_parser
 from termcolor import colored
 
-# need your cookie _simpleauth_sess value from browser
-session_cookie = ''
+try:
+    import ruamel_yaml as yaml
+except ModuleNotFoundError:
+    import yaml
 
 
 def round10(x):
@@ -45,13 +47,34 @@ def restring(string):
 def download(url, file_name):
     with requests.get(url, stream=True) as r:
         total_length = int(r.headers.get('content-length'))
-        print('Downloading ', colored(f'{file_name.name} ', 'blue',
-                                      'on_white'),
+        print('Downloading ', colored(f'{file_name.name} ', 'blue', 'on_white'),
               colored(f'{human_size(total_length)} ', 'white', 'on_cyan'))
         with open(file_name, 'wb') as f:
             for chunk in r.iter_content(chunk_size=1024**2):
                 f.write(chunk)
     time.sleep(.1)
+
+
+def read_yaml():
+    with open('config.yaml') as yamfile:
+        cfg = yaml.safe_load(yamfile)
+    return cfg
+
+
+def parse_config(parser):
+    cfg = read_yaml()
+    platforms = parser.parse_args().platform
+    download_limit = parser.parse_args().download_limit[0]
+    download_limit = download_limit if download_limit else None
+    download_limit = cfg[
+        'download_limit'] if download_limit is None or download_limit < 0 else download_limit
+    purchase_limit = parser.parse_args().purchase_limit[0]
+    purchase_limit = cfg[
+        'purchase_limit'] if purchase_limit is None or purchase_limit < 0 else purchase_limit
+    smallest_first = parser.parse_args().smallest_first
+    path = cfg['download_folder']
+    session_cookie = cfg['session_cookie']
+    return platforms, download_limit, purchase_limit, smallest_first, path, session_cookie
 
 
 class HumbleApi:
@@ -68,22 +91,26 @@ class HumbleApi:
     }
     default_params = {"ajax": "true"}
 
-    def __init__(self, platform='audio', d_limit=None, n_limit=None,
-                 revs=True):
+    def __init__(self,
+                 platform='audio',
+                 download_limit=None,
+                 purchase_limit=None,
+                 smallest_first=True,
+                 path='.',
+                 session_cookie=''):
         self.platform = platform
-        self.d_limit = d_limit
-        self.n_limit = n_limit
-        self.reverse = revs
-        self.dir = Path('.') / Path(platform)
-        self.dir.mkdir(exist_ok=True, parents=True)
+        self.download_limit = download_limit
+        self.purchase_limit = purchase_limit
+        self.reverse = not smallest_first
+        self.download_folder = Path(path)
+        self.download_folder.mkdir(exist_ok=True)
+        self.dir = self.download_folder / Path(platform)
+        self.auth_sess_cookie = bytes(session_cookie, 'utf-8').decode()
         self.session = requests.Session()
 
-        auth_sess_cookie = bytes(session_cookie, 'utf-8').decode()
-        self.cookie = http.cookiejar.Cookie(0, "_simpleauth_sess",
-                                            auth_sess_cookie, None, None,
-                                            "www.humblebundle.com", None, None,
-                                            "/", None, True, None, False, None,
-                                            None, None)
+        self.cookie = http.cookiejar.Cookie(0, "_simpleauth_sess", self.auth_sess_cookie, None,
+                                            None, "www.humblebundle.com", None, None, "/", None,
+                                            True, None, False, None, None, None)
 
         self.session = requests.Session()
         self.session.cookies.set_cookie(self.cookie)
@@ -93,7 +120,7 @@ class HumbleApi:
     def change_platform(self, platform):
         if platform != self.platform:
             self.platform = platform
-            self.dir = Path('.') / Path(platform)
+            self.dir = self.dir.parent / Path(platform)
             self.dir.mkdir(exist_ok=True, parents=True)
 
     def get_orders(self):
@@ -105,21 +132,18 @@ class HumbleApi:
         args = args[0]
         i = args[0]
         order = args[1]
-        info = 'Getting products:' + colored(f'{i+1}/{self.orders_num}',
-                                             'green')
+        info = 'Getting products:' + colored(f'{i+1}/{self.orders_num}', 'green')
         i = self.ORDER_URL.format(order_id=order)
         r = self.session.request('GET', i)
         r = r.json()
         time.sleep(.1)
-        return info, Order(r['subproducts'], r['product']['human_name'],
-                           r['created'])
+        return info, Order(r['subproducts'], r['product']['human_name'], r['created'])
 
     def get_products(self, max_items=0):
         self.product_lists = []
         self.orders_num = len(self.order_list)
-        with ThreadPoolExecutor(max_workers=self.d_limit) as executor:
-            for info, order in executor.map(self.get_product,
-                                            enumerate(self.order_list)):
+        with ThreadPoolExecutor(max_workers=self.download_limit) as executor:
+            for info, order in executor.map(self.get_product, enumerate(self.order_list)):
                 self.product_lists.append(order)
                 print(info)
         '''for j, order in enumerate(self.order_list):
@@ -130,32 +154,23 @@ class HumbleApi:
             self.product_lists.append(Order(r['subproducts'], r['product']['human_name'], r['created']))
             if j + 1 >= max_items and max_items != 0:
                 break'''
-        self.product_lists.sort(key=lambda x: x.date,
-                                reverse=False)  # oldest first
-        self.product_set = {
-            item
-            for order in self.product_lists for item in order.products
-        }
+        self.product_lists.sort(key=lambda x: x.date, reverse=False)  # oldest first
+        self.product_set = {item for order in self.product_lists for item in order.products}
 
     def check_download(self):
-        if self.n_limit is None:
-            self.n_limit = 0
+        if self.purchase_limit is None:
+            self.purchase_limit = 0
         self.product_set2 = {
             item
-            for order in self.product_lists[-self.n_limit:]
-            for item in order.products
+            for order in self.product_lists[-self.purchase_limit:] for item in order.products
         }
         self.not_downloaded = {
             item
-            for order in self.product_lists[:-self.n_limit]
-            for item in order.products
+            for order in self.product_lists[:-self.purchase_limit] for item in order.products
         }
         self.product_set2 = self.product_set2.difference(self.not_downloaded)
-        self.product_set = self.product_set.intersection(
-            self.product_set2)  # will fail now
-        self.download_list = [
-            item for item in self.product_set if self.platform == item.platform
-        ]
+        self.product_set = self.product_set.intersection(self.product_set2)  # will fail now
+        self.download_list = [item for item in self.product_set if self.platform == item.platform]
         self.total_size = sum([item.size for item in self.download_list])
         self.human_size = human_size(self.total_size)
         self.downloaded_size = 0
@@ -176,9 +191,8 @@ class HumbleApi:
         filename = dir / Path(filename)
         if filename.exists():
             if md5sum(filename) == item.md5:
-                info = 'Skiping: ' + colored(
-                    f'{filename.name} ', 'yellow') + colored(
-                        f'{i+1}/{self.total_items}', 'magenta')
+                info = 'Skiping: ' + colored(f'{filename.name} ', 'yellow') + colored(
+                    f'{i+1}/{self.total_items}', 'magenta')
                 self.downloaded_size += item.size
                 print(info)
                 return
@@ -188,16 +202,15 @@ class HumbleApi:
             print(item.url)
         self.downloaded_size += item.size
         info = f'Downloaded {filename.name}, progress: ' + colored(
-            f'{human_size(self.downloaded_size)}/{self.human_size} ',
-            'cyan') + colored(f'{i+1}/{self.total_items}', 'magenta')
+            f'{human_size(self.downloaded_size)}/{self.human_size} ', 'cyan') + colored(
+                f'{i+1}/{self.total_items}', 'magenta')
         print(info)
 
     def downloads(self):
         self.check_download()
         self.total_items = len(self.download_list)
-        with ThreadPoolExecutor(max_workers=self.d_limit) as executor:
-            for track in executor.map(self.download2,
-                                      enumerate(self.download_list)):
+        with ThreadPoolExecutor(max_workers=self.download_limit) as executor:
+            for track in executor.map(self.download2, enumerate(self.download_list)):
                 pass
 
 
@@ -245,47 +258,41 @@ class Product:
 
 
 if __name__ == '__main__':
-    platform_list = [
-        'android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other'
-    ]
+    platform_list = ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other']
     parser = argparse.ArgumentParser(
-        description=
-        'Download files from Humble Bundle, based on selected platform')
-    parser.add_argument(
-        'platform',
-        metavar='platform',
-        type=str,
-        nargs='+',
-        help=f'platform to download, valid platforms are: {platform_list}')
+        description='Download files from Humble Bundle, based on selected platform')
+    parser.add_argument('platform',
+                        metavar='platform',
+                        type=str,
+                        nargs='+',
+                        help=f'platform to download, valid platforms are: {platform_list}')
     parser.add_argument('-l',
                         '--download-limit',
                         metavar='X',
                         type=int,
-                        default=[0],
+                        default=[None],
                         nargs=1,
                         help='Parallel download limit, optional.')
-    parser.add_argument(
-        '-n',
-        '--purchase-limit',
-        metavar='Y',
-        type=int,
-        default=[0],
-        nargs=1,
-        help='number of newest purchases to download, default 0 for all')
+    parser.add_argument('-n',
+                        '--purchase-limit',
+                        metavar='Y',
+                        type=int,
+                        default=[None],
+                        nargs=1,
+                        help='number of newest purchases to download, default 0 for all')
     parser.add_argument('-s',
                         '--smallest_first',
-                        action='store_false',
+                        action='store_true',
                         help='switch to download smallest files first')
-    platforms = parser.parse_args().platform
-    print(n_limit)
-    a = HumbleApi(platforms[0], d_limit, n_limit)
-    d_limit = parser.parse_args().download_limit[0]
-    d_limit = d_limit if d_limit else None
-    n_limit = parser.parse_args().purchase_limit[0]
-    revs = parser.parse_args().smallest_first
-    a = HumbleApi(platforms[0], d_limit, n_limit, revs)
-    a.get_orders()
-    a.get_products()
-    for platform in platforms:
-        a.change_platform(platform)
-        a.downloads()
+
+    cfg = parse_config(parser)
+    platforms, *cfg = cfg
+    if cfg[-1] == '':
+        print('No valid session_cookie, please provide session_cookie in config.yaml')
+    else:
+        a = HumbleApi(platforms[0], *cfg)
+        a.get_orders()
+        a.get_products()
+        for platform in platforms:
+            a.change_platform(platform)
+            a.downloads()

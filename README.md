@@ -25,10 +25,11 @@ pip install termcolor python-dateutil python-dateutil
 
 ```
 
-Edit 15th line and provide _simpleauth_sess cookie from browser between apostrophes.
-
 ## Usage
 
+Make config.yaml file based on example_config.yaml and provide _simpleauth_sess cookie from browser between apostrophes.
+
+Providing switches for download_limit and purchase_limit ignore default values from config.yaml file.
 ```
 python hb_downloader.py --help
 usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] platform [platform ...]

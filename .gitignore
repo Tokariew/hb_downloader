@@ -1,2 +1,5 @@
 config.yaml
 *yapf
+build/
+dist/
+*.pyc

@@ -20,11 +20,11 @@ except ModuleNotFoundError:
 
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+    """Get absolute path to resource, works for dev and for PyInstaller."""
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
 
-    return os.path.join(os.path.abspath("."), relative_path)
+    return os.path.join(os.path.abspath(''), relative_path)
 
 
 def round10(x):
@@ -43,8 +43,8 @@ def human_size(x):
 
 def md5sum(filename, blocksize=65536):
     hash = hashlib.md5()
-    with open(filename, "rb") as f:
-        for block in iter(lambda: f.read(blocksize), b""):
+    with open(filename, 'rb') as f:
+        for block in iter(lambda: f.read(blocksize), b''):
             hash.update(block)
     return hash.hexdigest()
 
@@ -97,18 +97,18 @@ def parse_config(parser):
 
 
 class HumbleApi:
-    LOGIN_URL = "https://www.humblebundle.com/processlogin"
-    ORDER_LIST_URL = "https://www.humblebundle.com/api/v1/user/order"
-    ORDER_URL = "https://www.humblebundle.com/api/v1/order/{order_id}"
+    LOGIN_URL = 'https://www.humblebundle.com/processlogin'
+    ORDER_LIST_URL = 'https://www.humblebundle.com/api/v1/user/order'
+    ORDER_URL = 'https://www.humblebundle.com/api/v1/order/{order_id}'
 
     default_headers = {
-        "Accept": "application/json",
-        "Accept-Charset": "utf-8",
-        "Keep-Alive": "true",
-        "X-Requested-By": "hb_android_app",
-        "User-Agent": "Apache-HttpClient/UNAVAILABLE (java 1.4)"
+        'Accept': 'application/json',
+        'Accept-Charset': 'utf-8',
+        'Keep-Alive': 'true',
+        'X-Requested-By': 'hb_android_app',
+        'User-Agent': 'Apache-HttpClient/UNAVAILABLE (java 1.4)'
     }
-    default_params = {"ajax": "true"}
+    default_params = {'ajax': 'true'}
 
     def __init__(self,
                  platform='audio',
@@ -127,11 +127,10 @@ class HumbleApi:
         self.auth_sess_cookie = bytes(session_cookie, 'utf-8').decode()
         self.session = requests.Session()
 
-        self.cookie = http.cookiejar.Cookie(0, "_simpleauth_sess", self.auth_sess_cookie, None,
-                                            None, "www.humblebundle.com", None, None, "/", None,
+        self.cookie = http.cookiejar.Cookie(0, '_simpleauth_sess', self.auth_sess_cookie, None,
+                                            None, 'www.humblebundle.com', None, None, '/', None,
                                             True, None, False, None, None, None)
 
-        self.session = requests.Session()
         self.session.cookies.set_cookie(self.cookie)
         self.session.headers.update(self.default_headers)
         self.session.params.update(self.default_params)
@@ -165,14 +164,6 @@ class HumbleApi:
             for info, order in executor.map(self.get_product, enumerate(self.order_list)):
                 self.product_lists.append(order)
                 print(info)
-        '''for j, order in enumerate(self.order_list):
-            print('Getting products:', colored(f'{j+1}/{orders}', 'green'))
-            i = self.ORDER_URL.format(order_id=order)
-            r = self.session.request('GET', i)
-            r = r.json()
-            self.product_lists.append(Order(r['subproducts'], r['product']['human_name'], r['created']))
-            if j + 1 >= max_items and max_items != 0:
-                break'''
         self.product_lists.sort(key=lambda x: x.date, reverse=False)  # oldest first
         self.product_set = {item for order in self.product_lists for item in order.products}
 
@@ -200,7 +191,7 @@ class HumbleApi:
         i = args[0]
         item = args[1]
         name = restring(item.hb_name)
-        name = item.date.strftime("%Y-%m-%d ") + name
+        name = item.date.strftime('%Y-%m-%d ') + name
         dir = self.dir / Path(name)
         dir.mkdir(exist_ok=True)
         dir = dir / Path(restring(item.name))
@@ -218,9 +209,9 @@ class HumbleApi:
         try:
             download(item.url, filename)
         except FileNotFoundError:
-            Err_msg = 'Probably 260 Character Path Limit on Windows.'
+            err_msg = 'Probably 260 Character Path Limit on Windows.'
             info = c_error('Error: ') + "Can't Download " + c_error(
-                f'{item.name} ') + 'from ' + c_error(f'{item.hb_name}\n{Err_msg}')
+                f'{item.name} ') + 'from ' + c_error(f'{item.hb_name}\n{err_msg}')
             print(info)
         else:
             self.downloaded_size += item.size

@@ -40,7 +40,8 @@ Download files from Humble Bundle, based on selected platform
 
 positional arguments:
   platform              platform to download, valid platforms are: ['android',
-                        'audio', 'ebook', 'linux', 'mac', 'windows', 'video']
+                        'audio', 'ebook', 'linux', 'mac', 'windows', 'video,
+                        other', 'nogames', 'all']
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -58,6 +59,15 @@ You can download multiple platforms one after another for example to download al
 python hb_downloader.py audio ebook
 ```
 
+To download all files from HB account use:
+```
+python hb_downloader.py all
+```
+
+To download all files, but not games:
+```
+python hb_downloader.py nogames
+```
 
 By default, script download multiple files at once, starting with the biggest files.
 You can limit maximum parallel downloads by specifying download-limit, to download 6 audio files at once use:

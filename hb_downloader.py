@@ -281,7 +281,7 @@ class Product:
 
 
 if __name__ == '__main__':
-    platform_list = ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other']
+    platform_list = ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other', 'nogames', 'all']
     parser = argparse.ArgumentParser(
         description='Download files from Humble Bundle, based on selected platform')
     parser.add_argument('platform',
@@ -319,6 +319,11 @@ if __name__ == '__main__':
         a = HumbleApi(platforms[0], *cfg)
         a.get_orders()
         a.get_products()
+        if 'nogames' in platforms:
+            platforms = {x.platform for x in a.product_set}
+            platforms = list(platforms.difference({'linux', 'mac', 'windows', 'android'}))
+        if 'all' in platforms:
+            platforms = list({x.platform for x in a.product_set})
         for platform in platforms:
             a.change_platform(platform)
             a.downloads()

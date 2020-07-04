@@ -91,9 +91,14 @@ def parse_config(parser):
     purchase_limit = cfg[
         'purchase_limit'] if purchase_limit is None or purchase_limit < 0 else purchase_limit
     smallest_first = parser.parse_args().smallest_first
-    path = cfg['download_folder']
-    session_cookie = cfg['session_cookie']
-    return platforms, download_limit, purchase_limit, smallest_first, path, session_cookie
+    cfg = {
+        'path': cfg['download_folder'],
+        'download_limit': download_limit,
+        'purchase_limit': purchase_limit,
+        'smallest_first': smallest_first,
+        'session_cookie': cfg['session_cookie']
+    }
+    return platforms, cfg
 
 
 class HumbleApi:
@@ -272,7 +277,9 @@ class Product:
 
 
 if __name__ == '__main__':
-    platform_list = ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other', 'nogames', 'all']
+    platform_list = [
+        'android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other', 'nogames', 'all'
+    ]
     parser = argparse.ArgumentParser(
         description='Download files from Humble Bundle, based on selected platform')
     parser.add_argument('platform',
@@ -299,15 +306,14 @@ if __name__ == '__main__':
                         action='store_true',
                         help='switch to download smallest files first')
 
-    cfg = parse_config(parser)
     try:
-        cookie = cfg[-1]
+        platforms, cfg = parse_config(parser)
+        cookie = cfg['session_cookie']
         test = cookie[0]  # this catch empty string
-    except IndexError:
+    except (IndexError, ValueError):
         print('No valid session_cookie, please provide session_cookie in config.yaml')
     else:
-        platforms, *cfg = cfg
-        a = HumbleApi(platforms[0], *cfg)
+        a = HumbleApi(platforms[0], **cfg)
         a.get_orders()
         a.get_products()
         if 'nogames' in platforms:

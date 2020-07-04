@@ -11,10 +11,8 @@ from pathlib import Path
 
 import requests
 from dateutil import parser as dt_parser
-from termcolor import colored
-
 from ruamel.yaml import YAML
-
+from termcolor import colored
 
 yaml = YAML(typ='safe')
 yaml.default_flow_style = False

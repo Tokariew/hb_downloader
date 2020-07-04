@@ -13,10 +13,11 @@ import requests
 from dateutil import parser as dt_parser
 from termcolor import colored
 
-try:
-    import ruamel_yaml as yaml
-except ModuleNotFoundError:
-    import yaml
+from ruamel.yaml import YAML
+
+
+yaml = YAML(typ='safe')
+yaml.default_flow_style = False
 
 
 def resource_path(relative_path):
@@ -72,7 +73,7 @@ def c_error(text):
 def read_yaml():
     try:
         with open('config.yaml') as yamfile:
-            cfg = yaml.safe_load(yamfile)
+            cfg = yaml.load(yamfile)
         return cfg
     except FileNotFoundError:
         Path('config.yaml').write_text(Path(resource_path('example_config.yaml')).read_text())
@@ -140,6 +141,15 @@ class HumbleApi:
         self.session.headers.update(self.default_headers)
         self.session.params.update(self.default_params)
 
+        try:
+            with open('downloaded.yaml') as yamfile:
+                self.downloaded_list = yaml.load(yamfile)
+                self.downloaded_list = [Product(**item) for item in self.downloaded_list]
+        except FileNotFoundError:
+            self.downloaded_list = []
+
+        self.downloading_list = []
+
     def change_platform(self, platform):
         if platform != self.platform:
             self.platform = platform
@@ -201,16 +211,35 @@ class HumbleApi:
         dir.mkdir(exist_ok=True)
         dir = dir / Path(restring(item.name))
         dir.mkdir(exist_ok=True)
+
         filename = item.url[:item.url.find('?')]
         filename = filename[filename.rfind('/') + 1:]
         filename = dir / Path(filename)
-        if filename.exists():
-            if md5sum(filename) == item.md5:
-                info = 'Skiping: ' + colored(f'{filename.name} ', 'yellow') + colored(
-                    f'{i+1}/{self.total_items}', 'magenta')
+
+        try:
+            item_down = self.downloaded_list[self.downloaded_list.index(item)]
+        except ValueError:
+            if filename.exists():
+                if md5sum(filename) == item.md5:
+                    # this check is very dirty, just in case of having download files from old version…
+                    item.checked = True
+                    print('dirty skip')
+                    return item
+        else:
+            item_down.checked = True
+            info_skip = 'Skiping: ' + colored(f'{filename.name} ', 'yellow') + colored(
+                f'{i+1}/{self.total_items}', 'magenta')
+            if not item_down.checked:
+                print('Checking md5')
+                if md5sum(filename) == item.md5:
+                    self.downloaded_size += item.size
+                    print(info_skip)
+                    return item_down
+            else:
                 self.downloaded_size += item.size
-                print(info)
-                return
+                print(info_skip)
+                return item_down
+
         try:
             download(item.url, filename)
         except FileNotFoundError:
@@ -224,13 +253,16 @@ class HumbleApi:
                 f'{human_size(self.downloaded_size)}/{self.human_size} ', 'cyan') + colored(
                     f'{i+1}/{self.total_items}', 'magenta')
             print(info)
+            item.checked = False
+            return item
 
     def downloads(self):
         self.check_download()
         self.total_items = len(self.download_list)
         with ThreadPoolExecutor(max_workers=self.download_limit) as executor:
             for track in executor.map(self.download2, enumerate(self.download_list)):
-                pass
+                if track is not None:
+                    self.downloading_list.append(track)
 
 
 class Order:
@@ -266,6 +298,7 @@ class Order:
 
 class Product:
     def __init__(self, **kwargs):
+        self.checked = False
         for k in kwargs.keys():
             setattr(self, k, kwargs[k])
 
@@ -277,6 +310,7 @@ class Product:
 
 
 if __name__ == '__main__':
+
     platform_list = [
         'android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other', 'nogames', 'all'
     ]
@@ -324,3 +358,9 @@ if __name__ == '__main__':
         for platform in platforms:
             a.change_platform(platform)
             a.downloads()
+
+        with open('downloaded.yaml', 'w') as yamfile:
+            to_dump = set(a.downloaded_list).union(a.downloading_list)  # hmm i like sets?
+            to_dump = [item.__dict__ for item in to_dump]
+            yaml.indent(mapping=4, sequence=6, offset=3)
+            yaml.dump(to_dump, yamfile)

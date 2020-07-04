@@ -3,3 +3,4 @@ config.yaml
 build/
 dist/
 *.pyc
+downloaded.yaml

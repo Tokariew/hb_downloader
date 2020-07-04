@@ -16,7 +16,7 @@ platform/date of purchase bundle name/item name
 This structure helps with importing ebooks into calibre, so each ebook will be in separate folder with multiple available formats.
 
 ## Requiments
-Python in version 3.6 of higher, accesible in command line
+Python in version 3.x or higher, accessible in command line
 
 Script require few additional non-standard packages. Install them with
 
@@ -25,7 +25,7 @@ pip install termcolor python-dateutil python-dateutil ruamel.yaml
 
 ```
 
-For Windows systems script require to remove 260 path name limit, otherwise download of some files will fail or script will try to redownload files with long file names.
+For Windows systems script require removing 260 path name limit, otherwise download of some files will fail or script will try to redownload files with long file names.
 
 ## Usage
 

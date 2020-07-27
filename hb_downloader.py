@@ -12,6 +12,7 @@ from pathlib import Path
 import requests
 from dateutil import parser as dt_parser
 from ruamel.yaml import YAML
+
 from termcolor import colored
 
 yaml = YAML(typ='safe')
@@ -213,6 +214,8 @@ class HumbleApi:
         filename = item.url[:item.url.find('?')]
         filename = filename[filename.rfind('/') + 1:]
         filename = dir / Path(filename)
+        info_skip = 'Skiping: ' + colored(f'{filename.name} ', 'yellow') + colored(
+            f'{i+1}/{self.total_items}', 'magenta')
 
         try:
             item_down = self.downloaded_list[self.downloaded_list.index(item)]
@@ -221,17 +224,15 @@ class HumbleApi:
                 if md5sum(filename) == item.md5:
                     # this check is very dirty, just in case of having download files from old version…
                     item.checked = True
-                    print('dirty skip')
+                    print(info_skip)
+                    self.downloaded_size += item.size
                     return item
         else:
-            item_down.checked = True
-            info_skip = 'Skiping: ' + colored(f'{filename.name} ', 'yellow') + colored(
-                f'{i+1}/{self.total_items}', 'magenta')
             if not item_down.checked:
-                print('Checking md5')
                 if md5sum(filename) == item.md5:
                     self.downloaded_size += item.size
                     print(info_skip)
+                    item_down.checked = True
                     return item_down
             else:
                 self.downloaded_size += item.size

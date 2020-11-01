@@ -34,23 +34,22 @@ Make config.yaml file based on example_config.yaml and provide _simpleauth_sess 
 Providing switches for download_limit and purchase_limit ignore default values from config.yaml file.
 ```
 python hb_downloader.py --help
-usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] platform [platform ...]
+usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] [--trove] platform [platform ...]
 
 Download files from Humble Bundle, based on selected platform
 
 positional arguments:
-  platform              platform to download, valid platforms are: ['android',
-                        'audio', 'ebook', 'linux', 'mac', 'windows', 'video,
-                        other', 'nogames', 'all']
+  platform              platform to download, valid platforms are: ['android', 'audio', 'ebook', 'linux', 'mac',
+                        'windows', 'video, other', 'nogames', 'all']
 
 optional arguments:
   -h, --help            show this help message and exit
-  -l X, --download-limit X
-                        Parallel download limit, optional.
-  -n Y, --purchase-limit Y
-                        number of newest purchases to download, default 0 for
-                        all
-  -s, --smallest_first  switch to download smallest files first
+  -l X, --download_limit X
+                        Download X files in parallel
+  -n Y, --purchase_limit Y
+                        Download Y newest purchases, 0 for all --default
+  -s, --smallest_first  Download smallest files first
+  --trove               If selected trove games will be downloaded
 ```
 
 You can download multiple platforms one after another for example to download all audio albums, and after that all ebook files:
@@ -82,3 +81,11 @@ python hb_downloader.py -n 5 ebook
 ```
 
 Above example will skip files if they were in previous bundles purchased, so it recommended use is to update downloaded collection by newest purchased bundles not downloaded before. If purchase-limit option is omitted all previously downloaded files will have their hash recomputed which will slow down overall process of downloading.
+
+### Trove
+
+In 2020-11-01 ability to download trove games was added.
+
+By default script don't try to download trove games, it can be enable in config file or by using --trove switch. Trove games are inside windows/linux/mac folder in *2010-11-24 trove* directory. If reported md5sum for trove games is identical to games from other purchase, then it will be put in corresponding purchase folder and not trove directory.
+
+**Script don't have ability to download only trove games**

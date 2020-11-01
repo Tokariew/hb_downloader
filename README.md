@@ -21,7 +21,7 @@ Python in version 3.x or higher, accessible in command line
 Script require few additional non-standard packages. Install them with
 
 ```
-pip install termcolor python-dateutil python-dateutil ruamel.yaml
+pip install termcolor python-dateutil python-slugify ruamel.yaml requests --user
 
 ```
 

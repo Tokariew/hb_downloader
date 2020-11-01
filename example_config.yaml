@@ -1,4 +1,6 @@
 download_folder: '.'
 session_cookie:  ''
-download_limit:  12
+download_limit:  4
 purchase_limit:  0
+smallest_first: false
+trove: false

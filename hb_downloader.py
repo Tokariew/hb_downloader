@@ -271,7 +271,7 @@ class HumbleApi:
 
         if filename.exists():
             if md5sum(filename) == item.md5:
-                item.checked = True
+                item_down.checked = True
                 # print(colored(f'Skiping {filename.name}', 'green'))
                 return True
         return False

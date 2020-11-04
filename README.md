@@ -20,7 +20,7 @@ Python in version 3.x or higher, accessible in command line
 
 Script require few additional non-standard packages. Install them with
 
-```
+```bash
 pip install termcolor python-dateutil python-slugify ruamel.yaml requests --user
 
 ```
@@ -32,7 +32,7 @@ For Windows systems script require removing 260 path name limit, otherwise downl
 Make config.yaml file based on example_config.yaml and provide _simpleauth_sess cookie from browser between apostrophes.
 
 Providing switches for download_limit and purchase_limit ignore default values from config.yaml file.
-```
+```bash
 python hb_downloader.py --help
 usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] [--trove] platform [platform ...]
 
@@ -54,12 +54,12 @@ optional arguments:
 
 You can download multiple platforms one after another for example to download all audio albums, and after that all ebook files:
 
-```
+```bash
 python hb_downloader.py audio ebook
 ```
 
 To download all files from HB account use:
-```
+```bash
 python hb_downloader.py all
 ```
 

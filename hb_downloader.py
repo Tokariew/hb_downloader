@@ -246,6 +246,7 @@ class HumbleApi:
 
         if self.check_file(item, filename):
             self.downloaded_size += item.size
+            item.checked = True
             return item
         else:
 
@@ -280,8 +281,7 @@ class HumbleApi:
 
         if filename.exists():
             if md5sum(filename) == item.md5:
-                item_down.checked = True
-                # print(colored(f'Skiping {filename.name}', 'green'))
+                print(colored(f'Skiping {filename.name}', 'green'))
                 return True
         return False
 

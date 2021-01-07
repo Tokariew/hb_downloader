@@ -228,9 +228,18 @@ class HumbleApi:
         dir = self.download_folder / Path(item.platform) / Path(name) / Path(slugify(item.name))
         dir.mkdir(parents=True, exist_ok=True)
 
-        if 'trove' in name:
-            item.url = self.get_trove_download_link(item)
-
+        if 'trove' in name and self.trove:
+            try:
+                item.url = self.get_trove_download_link(item)
+            except KeyError:
+                self.trove = False
+                print(
+                    colored(
+                        "Humble Choice subscription probably paused, can't download trove games",
+                        'yellow'
+                    )
+                )
+                return item
         filename = item.url[:item.url.find('?')]
         filename = filename[filename.rfind('/') + 1:]
         filename = dir / Path(filename)

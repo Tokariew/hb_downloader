@@ -217,7 +217,7 @@ class HumbleApi:
                 if track is not None:
                     self.downloading_list.append(track)
         with open('downloaded.yaml', 'w') as yamfile:
-            to_dump = set(self.downloaded_list).union(self.downloading_list)
+            to_dump = set(self.downloading_list).union(self.downloaded_list)
             to_dump = [item.__dict__ for item in to_dump]
             yaml.indent(mapping=4, sequence=6, offset=3)
             yaml.dump(to_dump, yamfile)

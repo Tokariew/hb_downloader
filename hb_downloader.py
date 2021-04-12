@@ -307,8 +307,11 @@ class Order:
             'thespookening_android', 'worldofgoo_android_pc_soundtrack_audio', 'dustforce_asm'
         ]
         self.md5_exclusion = [
-            'c0776421f3527a706cf1f3f3765cafb4', '2f8612361dde58c73525ea0d024c0460',
-            'bcb063559d17364e9f7bfd3d4fd799ee', '428dd67152164f444e6fa21e87caa147'
+            'c0776421f3527a706cf1f3f3765cafb4',  # issue 1
+            '2f8612361dde58c73525ea0d024c0460',  # issue 1
+            'bcb063559d17364e9f7bfd3d4fd799ee',  # issue 1
+            '428dd67152164f444e6fa21e87caa147',  # issue 1
+            'b5796f487f5f647045bb5fb6eaf16edf'  # issue 2 -- SOMA mac version
         ]
 
         trove = False

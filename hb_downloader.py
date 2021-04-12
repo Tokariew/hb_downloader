@@ -34,9 +34,15 @@ def md5sum(filename, blocksize=65536):
     return hash.hexdigest()
 
 
-def download(url, file_name, chunk_size=1048576):
+def download(url, file_name, report_size, chunk_size=1048576):
     with requests.get(url, stream=True) as r:
         total_length = int(r.headers.get('content-length'))
+        if total_length != report_size:
+            print(
+                'Ignoring file:', colored(f'{file_name.name}', 'red'),
+                ' mismatch between file on server, and reported on site'
+            )
+            return
         print(
             'Downloading ', colored(f'{file_name.name} ', 'blue', 'on_white'),
             colored(f'{human_size(total_length)} ', 'white', 'on_cyan')
@@ -251,7 +257,7 @@ class HumbleApi:
         else:
 
             try:
-                download(item.url, filename)
+                download(item.url, filename, item.size)
             except FileNotFoundError:
                 print('Probably 260 Character Path Limit on Windows.')
             except ConnectionResetError:

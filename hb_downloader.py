@@ -75,6 +75,13 @@ def parse_config(parser):
 
     return platforms, cfg
 
+def dump_data(to_dump, file_name):
+    to_dump = [item.__dict__ for item in to_dump]
+    to_dump = sorted(to_dump, key = lambda i: (i['date'], i['name']))
+    yaml.indent(mapping=4, sequence=6, offset=3)
+    with open(file_name, 'w') as file:
+        yaml.dump(to_dump, file)
+
 
 class HumbleApi:
     LOGIN_URL = 'https://www.humblebundle.com/processlogin'
@@ -222,16 +229,12 @@ class HumbleApi:
             ):
                 if track is not None:
                     self.downloading_list.append(track)
-        with open('downloaded.yaml', 'w') as yamfile:
-            to_dump = set(self.downloading_list).union(self.downloaded_list)
-            to_dump = [item.__dict__ for item in to_dump]
-            yaml.indent(mapping=4, sequence=6, offset=3)
-            yaml.dump(to_dump, yamfile)
-        with open('orphaned.yaml', 'w') as yamfile:
-            to_dump = set(self.downloaded_list).difference(self.downloading_list)
-            to_dump = [item.__dict__ for item in to_dump]
-            yaml.indent(mapping=4, sequence=6, offset=3)
-            yaml.dump(to_dump, yamfile)
+        to_dump = set(self.downloading_list).union(self.downloaded_list)
+        dump_data(to_dump, 'downloaded.yaml')
+        to_dump = set(self.downloaded_list).difference(self.downloading_list)
+        dump_data(to_dump, 'orphaned.yaml')
+        to_dump = set(self.to_download_list).difference(self.downloading_list)
+        dump_data(to_dump, 'not-downloaded.yaml')
 
     def download(self, i, item):
         name = slugify(item.hb_name)

@@ -227,6 +227,11 @@ class HumbleApi:
             to_dump = [item.__dict__ for item in to_dump]
             yaml.indent(mapping=4, sequence=6, offset=3)
             yaml.dump(to_dump, yamfile)
+        with open('orphaned.yaml', 'w') as yamfile:
+            to_dump = set(self.downloaded_list).difference(self.downloading_list)
+            to_dump = [item.__dict__ for item in to_dump]
+            yaml.indent(mapping=4, sequence=6, offset=3)
+            yaml.dump(to_dump, yamfile)
 
     def download(self, i, item):
         name = slugify(item.hb_name)

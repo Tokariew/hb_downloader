@@ -1,8 +1,10 @@
+#!/bin/python
 import argparse
 import hashlib
 import http.cookiejar
 import time
 from concurrent.futures import ThreadPoolExecutor
+from json import JSONDecodeError
 from math import floor, log2
 from pathlib import Path
 
@@ -40,7 +42,7 @@ def download(url, file_name, report_size, chunk_size=1048576):
         if total_length != report_size:
             print(
                 'Ignoring file:', colored(f'{file_name.name}', 'red'),
-                ' mismatch between file on server, and reported on site'
+                ' mismatch between download size and reported by API'
             )
             return
         print(
@@ -75,9 +77,10 @@ def parse_config(parser):
 
     return platforms, cfg
 
+
 def dump_data(to_dump, file_name):
     to_dump = [item.__dict__ for item in to_dump]
-    to_dump = sorted(to_dump, key = lambda i: (i['date'], i['name']))
+    to_dump = sorted(to_dump, key=lambda i: (i['date'], i['name']))
     yaml.indent(mapping=4, sequence=6, offset=3)
     with open(file_name, 'w') as file:
         yaml.dump(to_dump, file)
@@ -143,10 +146,14 @@ class HumbleApi:
 
     def get_order_info(self, i, order):
         info = 'Getting products:' + colored(f'{i+1}/{self.orders_num}', 'green')
-        i = self.ORDER_URL.format(order_id=order)
-        r = self.session.get(i)
-        r = r.json()
-        time.sleep(.1)
+        url = self.ORDER_URL.format(order_id=order)
+        r = self.session.get(url)
+        try:
+            r = r.json()
+            time.sleep(.1)
+        except JSONDecodeError:
+            print(f'JSON error for: {url}')
+            return info, []
         return info, Order(r['subproducts'], r['product']['human_name'], r['created'])
 
     def get_trove_info(self):
@@ -154,11 +161,34 @@ class HumbleApi:
         trove_list = []
         while True:
             r = self.session.get(self.TROVE_URL.format(page=page))
-            if not r.json():
+            if not r.json():  # check for empty list
                 break
             trove_list += r.json()
             page += 1
         self.trove_set = set(Order(trove_list, 'trove', '2010-11-24').products)
+
+    def check_trove_active(self):
+        tmp = list(self.trove_set)[0]
+        try:
+            url = self.get_trove_download_link(tmp)
+            print(url)
+        except KeyError:
+            print(
+                colored(
+                    "Humble Choice subscription probably paused, can't download trove games",
+                    'yellow'
+                )
+            )
+            self.trove = False
+            return False
+        return True
+
+    def get_trove_download_link(self, product):
+        r = self.session.post(
+            'https://www.humblebundle.com/api/v1/user/download/sign',
+            data={'machine_name': product.machine_name}
+        )
+        return r.json()['signed_url']
 
     def get_product_list(self):
         self.order_list = []
@@ -167,7 +197,8 @@ class HumbleApi:
             for info, order in executor.map(
                 self.get_order_info, range(self.orders_num), self.order_key_list
             ):
-                self.order_list.append(order)
+                if order:
+                    self.order_list.append(order)
                 print(info)
         self.order_list.sort(key=lambda x: x.date, reverse=False)  # oldest first
         self.product_set = {item for order in self.order_list for item in order.products}
@@ -201,9 +232,10 @@ class HumbleApi:
         self.check_platforms()
 
         if self.trove:
-            # to be sure that some download are not swapped with trove
+            # difference for check to work… otherwise humble will return non trove link
             self.trove_set = self.trove_set.difference(self.to_download_set)
-            self.to_download_set = self.to_download_set.union(self.trove_set)
+            if self.check_trove_active():
+                self.to_download_set = self.to_download_set.union(self.trove_set)
 
         self.to_download_list = [
             item for item in self.to_download_set if item.platform in self.platforms
@@ -212,13 +244,6 @@ class HumbleApi:
         self.human_size = human_size(self.total_size)
         self.downloaded_size = 0
         self.to_download_list.sort(key=lambda x: x.size, reverse=self.reverse_order)
-
-    def get_trove_download_link(self, product):
-        r = self.session.post(
-            'https://www.humblebundle.com/api/v1/user/download/sign',
-            data={'machine_name': product.machine_name}
-        )
-        return r.json()['signed_url']
 
     def download_threads(self):
         self.prepare_download_list()
@@ -243,17 +268,8 @@ class HumbleApi:
         dir.mkdir(parents=True, exist_ok=True)
 
         if 'trove' in name and self.trove:
-            try:
-                item.url = self.get_trove_download_link(item)
-            except KeyError:
-                self.trove = False
-                print(
-                    colored(
-                        "Humble Choice subscription probably paused, can't download trove games",
-                        'yellow'
-                    )
-                )
-                return item
+            item.url = self.get_trove_download_link(item)
+
         filename = item.url[:item.url.find('?')]
         filename = filename[filename.rfind('/') + 1:]
         filename = dir / Path(filename)
@@ -297,6 +313,11 @@ class HumbleApi:
             if md5sum(filename) == item.md5:
                 print(colored(f'Skiping {filename.name}', 'green'))
                 return True
+        try:
+            filename.unlink()
+            print(colored(f'Not correct md5sum, deleting {filename.name}', red))
+        except FileNotFoundError:
+            pass
         return False
 
 
@@ -371,6 +392,7 @@ class Product:
         return self.md5 == other.md5
 
     def __hash__(self):
+        # without hash, it not possible to put this into set. simplify logic
         return hash(self.md5)
 
 

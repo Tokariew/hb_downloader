@@ -23,7 +23,7 @@ def human_size(x):
         return '0 B'
     suffixes = ['B', 'kiB', 'MiB', 'GiB', 'TiB']
     c = floor(log2(x) / 10) * 10
-    x = x / 2**c
+    x = x / 2 ** c
     r = suffixes[c // 10]
     return f'{x:.02f} {r}'
 
@@ -122,8 +122,22 @@ class HumbleApi:
         self.session = requests.Session()
 
         self.cookie = http.cookiejar.Cookie(
-            0, '_simpleauth_sess', self.auth_sess_cookie, None, None, 'www.humblebundle.com', None,
-            None, '/', None, True, None, False, None, None, None
+            0,
+            '_simpleauth_sess',
+            self.auth_sess_cookie,
+            None,
+            None,
+            'www.humblebundle.com',
+            None,
+            None,
+            '/',
+            None,
+            True,
+            None,
+            False,
+            None,
+            None,
+            None
         )
 
         self.session.cookies.set_cookie(self.cookie)
@@ -161,6 +175,8 @@ class HumbleApi:
         trove_list = []
         while True:
             r = self.session.get(self.TROVE_URL.format(page=page))
+            if r.status_code != 200:
+                break
             if not r.json():  # check for empty list
                 break
             trove_list += r.json()
@@ -168,10 +184,14 @@ class HumbleApi:
         self.trove_set = set(Order(trove_list, 'trove', '2010-11-24').products)
 
     def check_trove_active(self):
-        tmp = list(self.trove_set)[0]
+        try:
+            tmp = list(self.trove_set)[0]
+        except IndexError:
+            self.trove = False
+            print(colored('Humble Trove is no more…', 'yellow'))
+            return False
         try:
             url = self.get_trove_download_link(tmp)
-            print(url)
         except KeyError:
             print(
                 colored(

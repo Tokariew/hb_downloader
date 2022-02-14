@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from json import JSONDecodeError
 from math import floor, log2
 from pathlib import Path
+from sys import exit, stdout
 
 import requests
 from dateutil import parser as dt_parser
@@ -14,11 +15,8 @@ from ruamel.yaml import YAML
 from slugify import slugify
 from termcolor import colored
 
-yaml = YAML(typ='safe')
-yaml.default_flow_style = False
 
-
-def human_size(x):
+def human_size(x: int) -> str:
     if x == 0:
         return '0 B'
     suffixes = ['B', 'kiB', 'MiB', 'GiB', 'TiB']
@@ -28,7 +26,7 @@ def human_size(x):
     return f'{x:.02f} {r}'
 
 
-def md5sum(filename, blocksize=65536):
+def md5sum(filename: Path, blocksize=65536) -> str:
     hash = hashlib.md5()
     with open(filename, 'rb') as f:
         for block in iter(lambda: f.read(blocksize), b''):
@@ -36,17 +34,29 @@ def md5sum(filename, blocksize=65536):
     return hash.hexdigest()
 
 
-def download(url, file_name, report_size, chunk_size=1048576):
+def progress(count: int, total: int, suffix: str = '') -> None:
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+    stdout.write(f'[{"="*filled_len:-<{bar_len}}] {percents}% … {suffix}\r')
+    stdout.flush()  # As suggested by Rom Ruben
+
+
+def download(url: str, file_name: Path, report_size: int, chunk_size: int = 1048576) -> None:
     with requests.get(url, stream=True) as r:
         total_length = int(r.headers.get('content-length'))
         if total_length != report_size:
             print(
-                'Ignoring file:', colored(f'{file_name.name}', 'red'),
+                'Ignoring file:',
+                colored(f'{file_name.name}', 'red'),
                 ' mismatch between download size and reported by API'
             )
             return
         print(
-            'Downloading ', colored(f'{file_name.name} ', 'blue', 'on_white'),
+            'Downloading ',
+            colored(f'{file_name.name} ', 'blue', 'on_white'),
             colored(f'{human_size(total_length)} ', 'white', 'on_cyan')
         )
         with open(file_name, 'wb') as f:
@@ -150,8 +160,21 @@ class HumbleApi:
                 self.downloaded_list = [Product(**item) for item in self.downloaded_list]
         except FileNotFoundError:
             self.downloaded_list = []
-
+        # add all
+        self.order_key_list = []
+        self.order_list = []
         self.downloading_list = []
+        self.orders_num = 0
+        self.product_set = set()
+        self.all_set = set()
+        self.trove_set = set()
+        self.to_not_download_set = set()
+        self.to_download_set = set()
+        self.to_download_list = []
+        self.total_size = 0
+        self.human_size = ''
+        self.downloaded_size = 0
+        self.total_items = 0
 
     def get_order_list(self):
         r = self.session.get(self.ORDER_LIST_URL)
@@ -168,7 +191,7 @@ class HumbleApi:
         except JSONDecodeError:
             print(f'JSON error for: {url}')
             return info, []
-        return info, Order(r['subproducts'], r['product']['human_name'], r['created'])
+        return i, Order(r['subproducts'], r['product']['human_name'], r['created'])
 
     def get_trove_info(self):
         page = 0
@@ -219,7 +242,11 @@ class HumbleApi:
             ):
                 if order:
                     self.order_list.append(order)
-                print(info)
+                text = "Getting products: " + colored(f'{info + 1}/{self.orders_num}', "green")
+                #stdout.write('\x1b[2K\r')
+                #print(text)
+                progress(info + 1, self.orders_num, text)
+        print('\n')
         self.order_list.sort(key=lambda x: x.date, reverse=False)  # oldest first
         self.product_set = {item for order in self.order_list for item in order.products}
 
@@ -236,9 +263,12 @@ class HumbleApi:
     def prepare_download_list(self):
         if self.purchase_limit is None:
             self.purchase_limit = 0
+
+        self.all_set = {item for order in self.order_list for item in order.products}
+
         self.to_download_set = {
             item
-            for order in self.order_list[-self.purchase_limit:]
+            for order in self.order_list[-self.purchase_limit :]
             for item in order.products
         }
         self.to_not_download_set = {
@@ -256,6 +286,7 @@ class HumbleApi:
             self.trove_set = self.trove_set.difference(self.to_download_set)
             if self.check_trove_active():
                 self.to_download_set = self.to_download_set.union(self.trove_set)
+                self.all_set = self.all_set.union(self.trove_set)
 
         self.to_download_list = [
             item for item in self.to_download_set if item.platform in self.platforms
@@ -274,25 +305,31 @@ class HumbleApi:
             ):
                 if track is not None:
                     self.downloading_list.append(track)
+        self.save_data()
+        self.clean_orphan()
+
+    def save_data(self):
         to_dump = set(self.downloading_list).union(self.downloaded_list)
+        self.to_download_list = list(to_dump)
         dump_data(to_dump, 'downloaded.yaml')
-        to_dump = set(self.downloaded_list).difference(self.downloading_list)
+        to_dump = to_dump.difference(self.all_set)
         dump_data(to_dump, 'orphaned.yaml')
-        to_dump = set(self.to_download_list).difference(self.downloading_list)
+        to_dump = self.all_set.difference(self.downloaded_list)
         dump_data(to_dump, 'not-downloaded.yaml')
 
     def download(self, i, item):
         name = slugify(item.hb_name)
         name = item.date.strftime('%Y-%m-%d ') + name
-        dir = self.download_folder / Path(item.platform) / Path(name) / Path(slugify(item.name))
-        dir.mkdir(parents=True, exist_ok=True)
+        directory = self.download_folder / Path(item.platform
+                                                ) / Path(name) / Path(slugify(item.name))
+        directory.mkdir(parents=True, exist_ok=True)
 
         if 'trove' in name and self.trove:
             item.url = self.get_trove_download_link(item)
 
-        filename = item.url[:item.url.find('?')]
-        filename = filename[filename.rfind('/') + 1:]
-        filename = dir / Path(filename)
+        filename = item.url[: item.url.find('?')]
+        filename = filename[filename.rfind('/') + 1 :]
+        filename = directory / Path(filename)
 
         if self.check_file(item, filename):
             self.downloaded_size += item.size
@@ -322,23 +359,55 @@ class HumbleApi:
                     return item
 
     def check_file(self, item, filename):
-        try:
-            item_down = self.downloaded_list[self.downloaded_list.index(item)]
-            if item_down.checked:
-                return True
-        except ValueError:
-            pass
-
         if filename.exists():
-            if md5sum(filename) == item.md5:
+            try:
+                item_down = self.downloaded_list[self.downloaded_list.index(item)]
+                if item_down.checked:
+                    return True
+            except ValueError:
+                pass
+
+            md5 = md5sum(filename)
+            if md5 == item.md5:
                 print(colored(f'Skiping {filename.name}', 'green'))
                 return True
-        try:
-            filename.unlink()
-            print(colored(f'Not correct md5sum, deleting {filename.name}', red))
-        except FileNotFoundError:
-            pass
+            size = filename.stat().st_size
+            tmp_product = Product(md5=md5, size=size)
+            try:
+                # not working, only md5, need size too…
+                item_down = self.downloaded_list[self.downloaded_list.index(tmp_product)]
+                new_dst = filename.parents[3].joinpath('orphaned', *filename.parts[-4 :])
+                print(f'should move you: {new_dst}')
+                new_dst.parent.mkdir(parents=True, exist_ok=True)
+                filename.rename(new_dst)
+            except ValueError:
+                filename.unlink()
+                print(colored(f'Not correct md5sum, deleting {filename.name}', 'red'))
+            except AttributeError:
+                print(f'the hell {filename}')
+            return False
         return False
+
+    def clean_orphan(self):
+        to_clean = set(self.downloaded_list).union(self.downloading_list)
+        to_clean = to_clean.difference(self.all_set)
+        root = self.download_folder
+
+        for item in to_clean:
+            platform = item.platform
+            if platform == 'trove' and not self.trove:
+                return
+            bundle_name = f'{item.date.date()} {slugify(item.hb_name)}'
+            item_name = slugify(item.name)
+            filename = item.url[: item.url.find('?')]
+            filename = filename[filename.rfind('/') + 1 :]
+            filename = Path(f'{root}/{platform}/{bundle_name}/{item_name}/{filename}')
+
+            if filename.exists():
+                if item.md5 == md5sum(filename):
+                    item2 = filename.parents[3].joinpath('orphaned', *filename.parts[-4 :])
+                    item2.parent.mkdir(parents=True, exist_ok=True)
+                    filename.rename(item2)
 
 
 class Order:
@@ -355,8 +424,11 @@ class Order:
             '2f8612361dde58c73525ea0d024c0460',  # issue 1
             'bcb063559d17364e9f7bfd3d4fd799ee',  # issue 1
             '428dd67152164f444e6fa21e87caa147',  # issue 1
+            '748b36888d3c6e747dc00eea5d518bb9',
+            'ef8a5895edce744719bc031ffb0173b0',
             'b5796f487f5f647045bb5fb6eaf16edf'  # issue 2 -- SOMA mac version
         ]
+        # self.md5_exclusion = []
 
         trove = False
 
@@ -388,7 +460,7 @@ class Order:
                 print(colored(f'Problem with parsing information: {name}', 'red'))
         else:
             if md5 not in self.md5_exclusion:
-                test = {
+                data = {
                     'name': name,
                     'url': url,
                     'size': size,
@@ -398,7 +470,7 @@ class Order:
                     'date': self.date,
                     'machine_name': machine_name2
                 }
-                self.products.append(Product(**test))
+                self.products.append(Product(**data))
 
 
 class Product:
@@ -409,11 +481,11 @@ class Product:
             setattr(self, k, kwargs[k])
 
     def __eq__(self, other):
-        return self.md5 == other.md5
+        return self.md5 == other.md5 and self.size == other.size
 
     def __hash__(self):
         # without hash, it not possible to put this into set. simplify logic
-        return hash(self.md5)
+        return hash(f'{self.md5}{self.size}')
 
 
 if __name__ == '__main__':
@@ -463,10 +535,12 @@ if __name__ == '__main__':
         test = cookie[0]  # this catch empty string
     except (IndexError, ValueError):
         print('No valid session_cookie, please provide session_cookie in config.yaml')
+        exit()
     except TypeError:
         print(
             'No valid config file -- generated from default, please provide session_cookie in config file'
         )
+        exit()
 
     a = HumbleApi(**cfg, platforms=platforms)
     a.get_order_list()

@@ -110,7 +110,7 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
     try:
         del cfg['trove']
     except KeyError:
-        logger.debug("Ignore old stuff")
+        logger.debug("Already at new config")
     platforms = parser.parse_args().platform
     download_limit = parser.parse_args().download_limit[0]
     if download_limit:

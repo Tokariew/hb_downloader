@@ -2,20 +2,26 @@
 
 Simple script to download purchases from humble bundle account.
 
-By default, script download multiple files at once, starting with the biggest files.
-Script will only download files specified by platform parameter. Platform  parameter is based on platform selection in [HB Library](https://www.humblebundle.com/home/library).
+By default, script download multiple files at once, starting with the biggest
+files. Script will only download files specified by platform parameter.
+Platform  parameter is based on platform selection in [HB
+Library](https://www.humblebundle.com/home/library).
 
-Script only download files once even if it was purchased in multiple bundles. It will be saved in the oldest bundle/purchase folder.
+Script only download files once even if it was purchased in multiple bundles.
+It will be saved in the oldest bundle/purchase folder.
 
-To not download files multiple times, hash of file is computed and compared with one provided by HB, so if HB will update files it will overwrite existing one.
+To not download files multiple times, hash of file is computed and compared
+with one provided by HB, so if HB will update files it will overwrite existing
+one.
 
 By default, file are saved in following folder structure:
 
 platform/date of purchase bundle name/item name
 
-This structure helps with importing ebooks into calibre, so each ebook will be in separate folder with multiple available formats.
+This structure helps with importing e-books into calibre, so each e-book will
+be in separate folder with multiple available formats.
 
-## Requiments
+## Requirements
 Python in version 3.x or higher, accessible in command line
 
 Script require few additional non-standard packages. Install them with
@@ -25,13 +31,18 @@ pip install python-slugify ruamel.yaml requests loguru --user
 
 ```
 
-For Windows systems script require removing 260 path name limit, otherwise download of some files will fail or script will try to redownload files with long file names.
+For Windows systems script require removing 260 path name limit, otherwise
+download of some files will fail or script will try to redownload files with
+long file names.
 
 ## Usage
 
-Make config.yaml file based on example_config.yaml and provide _simpleauth_sess cookie from browser between apostrophes.
+Make config.yaml file based on example_config.yaml and provide _simpleauth_sess
+cookie from browser between apostrophes.
 
-Providing switches for download_limit and purchase_limit ignore default values from config.yaml file.
+Providing switches for download_limit and purchase_limit ignore default values
+from config.yaml file.
+
 ```bash
 python hb_downloader.py --help
 usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] [--trove] platform [platform ...]
@@ -51,7 +62,8 @@ optional arguments:
   -s, --smallest_first  Download smallest files first
 ```
 
-You can download multiple platforms one after another for example to download all audio albums, and after that all ebook files:
+You can download multiple platforms one after another for example to download
+all audio albums, and after that all e-book files:
 
 ```bash
 python hb_downloader.py audio ebook
@@ -67,26 +79,38 @@ To download all files, but not games:
 python hb_downloader.py nogames
 ```
 
-By default, script download multiple files at once, starting with the biggest files.
-You can limit maximum parallel downloads by specifying download-limit, to download 6 audio files at once use:
+By default, script download multiple files at once, starting with the biggest
+files. You can limit maximum parallel downloads by specifying download-limit,
+to download 6 audio files at once use:
+
 ```
 python hb_downloader.py -l 6 audio
 ```
 
-To download only files from the latest purchase use purchase-limit option, for example to download only ebooks from last 5 bundles use:
+To download only files from the latest purchase use purchase-limit option, for
+example to download only e-books from last 5 bundles use:
 
 ```
 python hb_downloader.py -n 5 ebook
 ```
 
-Above example will skip files if they were in previous bundles purchased, so it recommended use is to update downloaded collection by newest purchased bundles not downloaded before. If purchase-limit option is omitted all previously downloaded files will have their hash recomputed which will slow down overall process of downloading.
+Above example will skip files if they were in previous bundles purchased, so it
+recommended use is to update downloaded collection by newest purchased bundles
+not downloaded before. If purchase-limit option is omitted all previously
+downloaded files will have their hash recomputed which will slow down overall
+process of downloading.
 
 ### Trove
 
 In 2020-11-01 ability to download trove games was added.
 
-By default script don't try to download trove games, it can be enable in config file or by using --trove switch. Trove games are inside windows/linux/mac folder in *2010-11-24 trove* directory. If reported md5sum for trove games is identical to games from other purchase, then it will be put in corresponding purchase folder and not trove directory.
+By default script don't try to download trove games, it can be enable in config
+file or by using --trove switch. Trove games are inside windows/linux/mac
+folder in *2010-11-24 trove* directory. If reported md5sum for trove games is
+identical to games from other purchase, then it will be put in corresponding
+purchase folder and not trove directory.
 
 **Script don't have ability to download only trove games**
 
-Trove support was dropped on 2022-02-15, because Humble Bundle no longer provide it.
+Trove support was dropped on 2022-02-15, because Humble Bundle no longer
+provide it.

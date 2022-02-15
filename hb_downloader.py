@@ -1,5 +1,4 @@
 #!/bin/python
-# -*- coding: utf-8 -*-
 import argparse
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
@@ -41,7 +40,7 @@ def md5sum(filepath: Path, blocksize: int = 65536) -> str:
     return filehash.hexdigest()
 
 
-def download(urllink: str, filepath: Path, reported_size: int, chunk_size: int = 1048576) -> None:
+def download(urllink: str, filepath: Path, reported_size: int, chunk_size: int = 1048576) -> bool:
     with requests.get(urllink, stream=True) as r:
         total_length = int(r.headers.get('content-length'))  # type: ignore
         if total_length != reported_size:
@@ -108,6 +107,10 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         Path('config.yaml').write_text(Path('example_config.yaml').read_text())
         logger.warning(f"No valid config file, creating default.")
         exit()
+    try:
+        del cfg['trove']
+    except KeyError:
+        logger.debug("Ignore old stuff")
     platforms = parser.parse_args().platform
     download_limit = parser.parse_args().download_limit[0]
     if download_limit:
@@ -298,7 +301,7 @@ class HumbleApi:
                     item2.parent.mkdir(parents=True, exist_ok=True)
                     filename.rename(item2)
             else:
-                logger.debug("File already moved {filename.name}")
+                logger.debug(f"File already moved {filename.name}")
 
     def check_file(self, product, filename):
         if filename.exists():
@@ -398,7 +401,7 @@ class Order:
             machine_name = machine_name
         except KeyError:
             if machine_name not in self.name_exclusion:
-                log.error(f'Problem with parsing {machine_name}')
+                logger.error(f'Problem with parsing {machine_name}')
                 pass
         else:
             if md5 not in self.md5_exclusion:
@@ -421,8 +424,13 @@ class Product:
         self.checked: bool = False
         self.md5: str
         self.size: int
+        self.name: str
         for key in kwargs.keys():
             setattr(self, key, kwargs[key])
+        if hasattr(self, 'hb_name'):  # this convert from old downloaded.yaml
+            logger.debug(f'Converting old hb_name to new bundle_name for {self.name}')
+            setattr(self, 'bundle_name', self.hb_name)
+            delattr(self, 'hb_name')
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Product):

@@ -62,8 +62,8 @@ optional arguments:
   -s, --smallest_first  Download smallest files first
 ```
 
-You can download multiple platforms one after another for example to download
-all audio albums, and after that all e-book files:
+You can specify multiple platforms to download, for example to download all
+audio albums, and all e-book files:
 
 ```bash
 python hb_downloader.py audio ebook

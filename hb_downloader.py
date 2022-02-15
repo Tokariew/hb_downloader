@@ -71,6 +71,7 @@ def create_parser() -> argparse.ArgumentParser:
         'platform',
         metavar='platform',
         type=str,
+        choices=platform_list,
         nargs='+',
         help=f'platform to download, valid platforms are: {platform_list}'
     )

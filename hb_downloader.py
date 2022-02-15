@@ -3,6 +3,7 @@ import argparse
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from json import JSONDecodeError
 from math import floor, log2
 from pathlib import Path
 from sys import exit, stdout

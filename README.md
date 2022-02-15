@@ -37,8 +37,8 @@ long file names.
 
 ## Usage
 
-Make config.yaml file based on example_config.yaml and provide _simpleauth_sess
-cookie from browser between apostrophes.
+Make config.yaml file based on example_config.yaml and provide
+`_simpleauth_sess` cookie from browser between apostrophes.
 
 Providing switches for download_limit and purchase_limit ignore default values
 from config.yaml file.

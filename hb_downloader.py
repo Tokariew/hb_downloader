@@ -2,21 +2,26 @@
 # -*- coding: utf-8 -*-
 import argparse
 import hashlib
-import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from math import floor, log2
 from pathlib import Path
 from sys import exit, stdout
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime
 
 import requests
-from slugify import slugify
-from ruamel.yaml import YAML  # type: ignore
 from loguru import logger
+from ruamel.yaml import YAML  # type: ignore
+from slugify import slugify
 
 logger.remove(0)
-logger.add(stdout, level='WARNING', colorize=True, format="\x1b[A\r<level>{level}:</level> {message}\x1b[K\x1b[B\x1b[B")
+logger.add(
+    stdout,
+    level='WARNING',
+    colorize=True,
+    format="\x1b[A\r<level>{level}:</level> {message}\x1b[K\x1b[B\x1b[B"
+)
+
 
 def human_size(x: int) -> str:
     if x == 0:

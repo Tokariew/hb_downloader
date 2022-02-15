@@ -3,4 +3,3 @@ session_cookie:  ''
 download_limit:  4
 purchase_limit:  0
 smallest_first: false
-trove: false

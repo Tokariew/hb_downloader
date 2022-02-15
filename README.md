@@ -21,7 +21,7 @@ Python in version 3.x or higher, accessible in command line
 Script require few additional non-standard packages. Install them with
 
 ```bash
-pip install termcolor python-dateutil python-slugify ruamel.yaml requests --user
+pip install python-slugify ruamel.yaml requests loguru --user
 
 ```
 
@@ -49,7 +49,6 @@ optional arguments:
   -n Y, --purchase_limit Y
                         Download Y newest purchases, 0 for all --default
   -s, --smallest_first  Download smallest files first
-  --trove               If selected trove games will be downloaded
 ```
 
 You can download multiple platforms one after another for example to download all audio albums, and after that all ebook files:
@@ -89,3 +88,5 @@ In 2020-11-01 ability to download trove games was added.
 By default script don't try to download trove games, it can be enable in config file or by using --trove switch. Trove games are inside windows/linux/mac folder in *2010-11-24 trove* directory. If reported md5sum for trove games is identical to games from other purchase, then it will be put in corresponding purchase folder and not trove directory.
 
 **Script don't have ability to download only trove games**
+
+Trove support was dropped on 2022-02-15, because Humble Bundle no longer provide it.

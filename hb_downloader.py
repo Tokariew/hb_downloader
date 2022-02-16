@@ -291,7 +291,7 @@ class HumbleApi:
 
             if filename.exists():
                 if item.md5 == md5sum(filename):
-                    logger.warning("Moving orphaned file {filename.name}")
+                    logger.warning(f"Moving orphaned file {filename.name}")
                     item2 = filename.parents[3].joinpath('orphaned', *filename.parts[-4 :])
                     i = 1
                     # loop here to avoid rewriting files, *nix problem

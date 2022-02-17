@@ -306,7 +306,9 @@ class HumbleApi:
                 logger.debug(f"File already moved {filename.name}")
 
     def check_file(self, product, filename):
-        if filename.exists():
+        if not filename.exists():
+            logger.warning(f'File missing {filename}')
+        else:
             md5 = md5sum(filename)
             if md5 == product.md5:
                 logger.success(f'File checked {filename.name}')
@@ -315,7 +317,6 @@ class HumbleApi:
                 # file exist, but not correct md5 -> delete it
                 logger.error(f'File mismatch md5sum, deleting {product.name}, {filename}')
                 filename.unlink()
-            logger.warning(f'File missing {filename}')
         return False
 
     def download(self, i, item):

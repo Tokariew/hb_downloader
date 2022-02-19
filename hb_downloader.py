@@ -45,7 +45,7 @@ def download(urllink: str, filepath: Path, reported_size: int, chunk_size: int =
     with requests.get(urllink, stream=True) as r:
         total_length = int(r.headers.get('content-length'))  # type: ignore
         if total_length != reported_size:
-            return False
+            raise ValueError
         with open(filepath, 'wb') as f:
             for chunk in r.iter_content(chunk_size=chunk_size):
                 f.write(chunk)
@@ -339,19 +339,18 @@ class HumbleApi:
                 info = download(item.url, filename, item.size)
                 if info:
                     logger.success(f"Downloaded {filename.name} {human_size(item.size)}")
-                else:
-                    logger.warning(f"Mismatch in reported size {filename.name}")
+            except ValueError:
+                logger.warning(f"Mismatch in reported size {filename.name}")
             except FileNotFoundError:
                 logger.error("Probable error with 260 character path limit")
-                pass
             except ConnectionResetError:
                 logger.warning(f"Connection problem when getting {filename}")
-                pass
             else:
                 if filename.exists():
                     if item.size != filename.stat().st_size:
                         logger.error(f"Deleting file with incorrect size {filename}")
                         filename.unlink()
+                        return
                     else:
                         self.downloaded_size += item.size
                         item.checked = False

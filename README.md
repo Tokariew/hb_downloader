@@ -109,3 +109,29 @@ it will be put in corresponding purchase folder and not trove directory.
 
 Trove support was dropped on 2022-02-15, because Humble Bundle no longer
 provide it.
+
+### podman/docker
+
+On 2022-08-08 created podman/docker image for easy use.
+
+To download image use:
+
+``` bash
+podman pull ghcr.io/tokariew/hb_downloader:latest
+```
+
+Basic run looks like:
+
+``` bash
+podman run -it --rm -v .:/srv:z hb_downloader:latest all
+```
+
+Above command at first run will create `config.yaml` file and fail, edit
+the file by providing `session_cookie` and run it again. Don't edit
+`download_folder` unless you properly change container volume. Files
+will be downloaded into current folder. You can change it by changing
+volume location for example:
+
+``` bash
+podman run -it --rm -v ~/Downloads/hb:/srv:z hb_downloader:latest all
+```

@@ -157,7 +157,7 @@ class HumbleApi:
         self.purchase_limit = purchase_limit
         self.reverse_order = not smallest_first
 
-        self.download_folder = Path(download_folder)
+        self.download_folder = Path(download_folder).expanduser()
         self.download_folder.mkdir(exist_ok=True)
 
         self.platforms = platforms

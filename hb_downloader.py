@@ -41,7 +41,12 @@ def md5sum(filepath: Path, blocksize: int = 65536) -> str:
     return filehash.hexdigest()
 
 
-def download(urllink: str, filepath: Path, reported_size: int, chunk_size: int = 1048576) -> bool:
+def download(
+    urllink: str,
+    filepath: Path,
+    reported_size: int,
+    chunk_size: int = 1048576
+) -> bool:
     with requests.get(urllink, stream=True) as r:
         total_length = int(r.headers.get('content-length'))  # type: ignore
         if total_length != reported_size:
@@ -52,9 +57,13 @@ def download(urllink: str, filepath: Path, reported_size: int, chunk_size: int =
     return True
 
 
-def progress_bar(count: int, total: int, bar_length: int = 60, suffix: str = '') -> None:
+def progress_bar(
+    count: int, total: int, bar_length: int = 60, suffix: str = ''
+) -> None:
     filled_length = bar_length * count // total
-    stdout.write(f'[{"="*filled_length:-<{bar_length}}] {count / total:.1%} … {suffix}\x1b[K\r')
+    stdout.write(
+        f'[{"="*filled_length:-<{bar_length}}] {count / total:.1%} … {suffix}\x1b[K\r'
+    )
     stdout.flush()
 
 
@@ -66,7 +75,8 @@ def extract_filename(product):
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Download files from Humble Bundle, based on selected platform'
+        description=
+        'Download files from Humble Bundle, based on selected platform'
     )
     parser.add_argument(
         'platform',
@@ -95,12 +105,17 @@ def create_parser() -> argparse.ArgumentParser:
         help='Download only from Y newest purchases, 0 for all --default'
     )
     parser.add_argument(
-        '-s', '--smallest_first', action='store_true', help='Download smallest files first'
+        '-s',
+        '--smallest_first',
+        action='store_true',
+        help='Download smallest files first'
     )
     return parser
 
 
-def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, Any]]:
+def parse_config(
+    parser: argparse.ArgumentParser
+) -> Tuple[List[str], dict[str, Any]]:
     try:
         with open('config.yaml') as yamlfile:
             cfg = yaml.load(yamlfile)
@@ -171,7 +186,9 @@ class HumbleApi:
             with open('downloaded.yaml') as yamlfile:
                 tmp = yaml.load(yamlfile)
                 self.downloaded_list = [Product(**item) for item in tmp]
-                self.checked_list = [item for item in self.downloaded_list if item.checked]
+                self.checked_list = [
+                    item for item in self.downloaded_list if item.checked
+                ]
         except FileNotFoundError:
             logger.debug('First time running')
             self.downloaded_list = []
@@ -196,7 +213,9 @@ class HumbleApi:
     def check_platforms(self):
         if 'nogames' in self.platforms:
             platforms = {x.platform for x in self.all_set}
-            self.platforms = list(platforms.difference({'linux', 'mac', 'windows', 'android'}))
+            self.platforms = list(
+                platforms.difference({'linux', 'mac', 'windows', 'android'})
+            )
         if 'all' in self.platforms:
             self.platforms = list(x.platform for x in self.all_set)
 
@@ -215,7 +234,9 @@ class HumbleApi:
         try:
             r = r.json()
         except JSONDecodeError:
-            logger.error(f'Problem with getting info about {self.ORDER_URL.format(order_id=order)}')
+            logger.error(
+                f'Problem with getting info about {self.ORDER_URL.format(order_id=order)}'
+            )
             return info, []
         return i, Order(r['subproducts'], r['product']['human_name'], r['created'])
 
@@ -226,10 +247,18 @@ class HumbleApi:
             ):
                 if order:
                     self.order_list.append(order)
-                progress_bar(info + 1, self.orders_num, suffix='Getting Products')
+                progress_bar(
+                    info + 1, self.orders_num, suffix='Getting Products'
+                )
         print('\n')
-        self.order_list.sort(key=lambda x: x.date, reverse=False)  # oldest first
-        self.all_set = {item for order in self.order_list for item in order.products}
+        self.order_list.sort(
+            key=lambda x: x.date, reverse=False
+        )  # oldest first
+        self.all_set = {
+            item
+            for order in self.order_list
+            for item in order.products
+        }
 
     def get_download_list(self):
         self.to_download_set = {
@@ -243,7 +272,9 @@ class HumbleApi:
             for item in order.products
         }
 
-        self.to_download_set = self.to_download_set.difference(self.to_not_download_set)
+        self.to_download_set = self.to_download_set.difference(
+            self.to_not_download_set
+        )
 
         self.check_platforms()
 
@@ -252,14 +283,18 @@ class HumbleApi:
             for item in self.to_download_set
             if item.platform in self.platforms
         }
-        self.to_download_set = self.to_download_set.difference(self.checked_list)
+        self.to_download_set = self.to_download_set.difference(
+            self.checked_list
+        )
         # above line to have only new items and items, which are not checked already
         self.to_download_list = list(self.to_download_set)
         self.total_size = sum(item.size for item in self.to_download_list)
         self.human_size = human_size(self.total_size)
         self.total_items = len(self.to_download_list)
         self.downloaded_size = 0
-        self.to_download_list.sort(key=lambda x: x.size, reverse=self.reverse_order)
+        self.to_download_list.sort(
+            key=lambda x: x.size, reverse=self.reverse_order
+        )
         self.orphaned_set = set(self.downloaded_list).difference(self.all_set)
         #self.orphaned_set = self.all_set.difference(self.downloaded_list)
 
@@ -274,7 +309,8 @@ class HumbleApi:
                 progress_bar(
                     self.downloaded_size,
                     self.total_size,
-                    suffix=f'Downloading: {human_size(self.downloaded_size)}/{self.human_size}'
+                    suffix=
+                    f'Downloading: {human_size(self.downloaded_size)}/{self.human_size}'
                 )
         print('\n')
         self.save_data()
@@ -292,7 +328,9 @@ class HumbleApi:
             if filename.exists():
                 if item.md5 == md5sum(filename):
                     logger.warning(f"Moving orphaned file {filename.name}")
-                    item2 = filename.parents[3].joinpath('orphaned', *filename.parts[-4 :])
+                    item2 = filename.parents[3].joinpath(
+                        'orphaned', *filename.parts[-4 :]
+                    )
                     i = 1
                     # loop here to avoid rewriting files, *nix problem
                     while True:
@@ -315,15 +353,18 @@ class HumbleApi:
                 return True
             else:
                 # file exist, but not correct md5 -> delete it
-                logger.error(f'File mismatch md5sum, deleting {product.name}, {filename}')
+                logger.error(
+                    f'File mismatch md5sum, deleting {product.name}, {filename}'
+                )
                 filename.unlink()
         return False
 
     def download(self, i, item):
         name = slugify(item.bundle_name)
         name = item.date.strftime('%Y-%m-%d ') + name
-        directory = self.download_folder / Path(item.platform
-                                                ) / Path(name) / Path(slugify(item.name))
+        directory = self.download_folder / Path(
+            item.platform
+        ) / Path(name) / Path(slugify(item.name))
 
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -335,10 +376,14 @@ class HumbleApi:
             return item
         else:
             try:
-                logger.debug(f"Download start for '{item.name}' {filename.name}")
+                logger.debug(
+                    f"Download start for '{item.name}' {filename.name}"
+                )
                 info = download(item.url, filename, item.size)
                 if info:
-                    logger.success(f"Downloaded {filename.name} {human_size(item.size)}")
+                    logger.success(
+                        f"Downloaded {filename.name} {human_size(item.size)}"
+                    )
             except ValueError:
                 logger.warning(f"Mismatch in reported size {filename.name}")
             except FileNotFoundError:
@@ -348,7 +393,9 @@ class HumbleApi:
             else:
                 if filename.exists():
                     if item.size != filename.stat().st_size:
-                        logger.error(f"Deleting file with incorrect size {filename}")
+                        logger.error(
+                            f"Deleting file with incorrect size {filename}"
+                        )
                         filename.unlink()
                         return
                     else:
@@ -371,7 +418,9 @@ class Order:
         self.bundle_name = name
         self.date = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S.%f')
         self.name_exclusion = [
-            'thespookening_android', 'worldofgoo_android_pc_soundtrack_audio', 'dustforce_asm'
+            'thespookening_android',
+            'worldofgoo_android_pc_soundtrack_audio',
+            'dustforce_asm'
         ]
         self.md5_exclusion = [
             'c0776421f3527a706cf1f3f3765cafb4',  # issue 1
@@ -391,10 +440,16 @@ class Order:
                 for items in product['downloads']:
                     machine_name = items['machine_name']
                     for struct in items['download_struct']:
-                        self.extract_data(struct, items['platform'], name, machine_name)
+                        self.extract_data(
+                            struct, items['platform'], name, machine_name
+                        )
 
     def extract_data(
-        self, struct: dict[str, Any], platform: str, name: str, machine_name: str
+        self,
+        struct: dict[str, Any],
+        platform: str,
+        name: str,
+        machine_name: str
     ) -> None:
         try:
             url = struct['url']['web']
@@ -430,7 +485,9 @@ class Product:
         for key in kwargs.keys():
             setattr(self, key, kwargs[key])
         if hasattr(self, 'hb_name'):  # this convert from old downloaded.yaml
-            logger.debug(f'Converting old hb_name to new bundle_name for {self.name}')
+            logger.debug(
+                f'Converting old hb_name to new bundle_name for {self.name}'
+            )
             setattr(self, 'bundle_name', self.hb_name)
             delattr(self, 'hb_name')
 
@@ -447,7 +504,15 @@ if __name__ == '__main__':
     yaml = YAML(typ='safe')
     yaml.default_flow_style = False
     platform_list = [
-        'android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video, other', 'nogames', 'all'
+        'android',
+        'audio',
+        'ebook',
+        'linux',
+        'mac',
+        'windows',
+        'video, other',
+        'nogames',
+        'all'
     ]
     parser = create_parser()
     platforms, cfg = parse_config(parser)

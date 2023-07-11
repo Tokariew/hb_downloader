@@ -122,7 +122,7 @@ def parse_config(
             _ = cfg.keys()  # check if file is not empty
     except (FileNotFoundError, AttributeError):
         Path('config.yaml').write_text(Path('example_config.yaml').read_text())
-        logger.warning(f"No valid config file, creating default.")
+        logger.warning("No valid config file, creating default.")
         exit()
     try:
         del cfg['trove']
@@ -226,7 +226,7 @@ class HumbleApi:
             self.order_key_list = [item['gamekey'] for item in r]
             self.orders_num = len(self.order_key_list)
         except JSONDecodeError:
-            logger.warning(f"Can't extract data from HB")
+            logger.warning("Can't extract data from HB")
             exit()
 
     def get_order_info(self, i, order):

@@ -345,7 +345,9 @@ class HumbleApi:
 
     def check_file(self, product, filename):
         if not filename.exists():
-            logger.warning(f'File missing {filename}')
+            logger.info(
+                f'File missing: {filename.name} {human_size(product.size)}'
+            )
         else:
             md5 = md5sum(filename)
             if md5 == product.md5:
@@ -510,7 +512,8 @@ if __name__ == '__main__':
         'linux',
         'mac',
         'windows',
-        'video, other',
+        'video',
+        'other',
         'nogames',
         'all'
     ]

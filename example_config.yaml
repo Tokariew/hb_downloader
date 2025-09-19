@@ -3,3 +3,5 @@ session_cookie:  ''
 download_limit:  4
 purchase_limit:  0
 smallest_first: false
+keep_wrong_size: false
+keep_wrong_md5sum: false

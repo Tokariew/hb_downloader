@@ -51,28 +51,24 @@ def md5sum(filepath: Path, pbar=None, blocksize: int = 65536) -> str:
 
 
 def download(
-    urllink: str, filepath: Path, reported_size: int, pbar, chunk_size: int = 1048576
+    urllink: str,
+    filepath: Path,
+    reported_size: int,
+    pbar,
+    chunk_size: int = 1048576,
+    keep_wrong_size: bool = False,
 ) -> bool:
     with requests.get(urllink, stream=True) as r:
         total_length = int(r.headers.get("content-length"))  # type: ignore
         if total_length != reported_size:
-            raise ValueError
-            return False
+            if not keep_wrong_size:
+                raise ValueError
+                return False
         with open(filepath, "wb") as f:
             for chunk in r.iter_content(chunk_size=chunk_size):
                 f.write(chunk)
                 pbar.update(len(chunk))
     return True
-
-
-def progress_bar(
-    count: int, total: int, bar_length: int = 60, suffix: str = ""
-) -> None:
-    filled_length = bar_length * count // total
-    stdout.write(
-        f"[{'=' * filled_length:-<{bar_length}}] {count / total:.1%} … {suffix}\x1b[K\r"
-    )
-    stdout.flush()
 
 
 def extract_filename(product):
@@ -83,7 +79,7 @@ def extract_filename(product):
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Download files from Humble Bundle, based on selected platform"
+        description="Download files from Humble Bundle, based on selected platform",
     )
     parser.add_argument(
         "platform",
@@ -117,6 +113,18 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Download smallest files first",
     )
+    parser.add_argument(
+        "-w",
+        "--keep_wrong_size",
+        action="store_true",
+        help="Download files with wrong size and keep them",
+    )
+    parser.add_argument(
+        "-m",
+        "--keep_wrong_md5sum",
+        action="store_true",
+        help="keep files with wrong md5sum them",
+    )
     return parser
 
 
@@ -143,6 +151,10 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         cfg["purchase_limit"] = purchase_limit
     if parser.parse_args().smallest_first:
         cfg["smallest_first"] = True
+    if parser.parse_args().keep_wrong_size:
+        cfg["keep_wrong_size"] = True
+    if parser.parse_args().keep_wrong_md5sum:
+        cfg["keep_wrong_md5sum"] = True
     return platforms, cfg
 
 
@@ -172,10 +184,14 @@ class HumbleApi:
         download_folder: str = ".",
         platforms: list[str] = [],
         session_cookie: str = "",
+        keep_wrong_size: bool = False,
+        keep_wrong_md5sum: bool = False,
     ):
         self.download_limit = download_limit
         self.purchase_limit = purchase_limit
         self.reverse_order = not smallest_first
+        self.keep_wrong_size = keep_wrong_size
+        self.keep_wrong_md5sum = keep_wrong_md5sum
 
         self.download_folder = Path(download_folder)
         self.download_folder.mkdir(exist_ok=True)
@@ -224,7 +240,14 @@ class HumbleApi:
             platforms = {x.platform for x in self.all_set}
             ## TODO: this is naughty
             self.platforms = list(
-                platforms.difference({"linux", "mac", "windows", "android"})
+                platforms.difference(
+                    {
+                        "linux",
+                        "mac",
+                        "windows",
+                        "android",
+                    },
+                ),
             )
         if "all" in self.platforms:
             self.platforms = [x.platform for x in self.all_set]
@@ -245,24 +268,23 @@ class HumbleApi:
             r = r.json()
         except JSONDecodeError:
             logger.error(
-                f"Problem with getting info about {self.ORDER_URL.format(order_id=order)}"
+                f"Problem with getting info about {self.ORDER_URL.format(order_id=order)}",
             )
             return None, []
         return Order(r["subproducts"], r["product"]["human_name"], r["created"])
 
     def get_product_list(self):
         with tqdm(
-            total=self.orders_num, desc="Getting products", dynamic_ncols=True
-        ) as progress:
-            with ThreadPoolExecutor(max_workers=self.download_limit) as executor:
-                futures = [
-                    executor.submit(self.get_order_info, orde)
-                    for orde in self.order_key_list
-                ]
-                for future in as_completed(futures):
-                    if future:
-                        progress.update(1)
-                        self.order_list.append(future.result())
+            total=self.orders_num, desc="Getting products", dynamic_ncols=True,
+        ) as progress, ThreadPoolExecutor(max_workers=self.download_limit) as executor:
+            futures = [
+                executor.submit(self.get_order_info, orde)
+                for orde in self.order_key_list
+            ]
+            for future in as_completed(futures):
+                if future:
+                    progress.update(1)
+                    self.order_list.append(future.result())
             # with ThreadPoolExecutor(max_workers=self.download_limit) as executor:
             #     for info, order in executor.map(
             #         self.get_order_info, range(
@@ -329,15 +351,14 @@ class HumbleApi:
             total=self.total_size,
             desc="Downloading",
             dynamic_ncols=True,
-        ) as pbar:
-            with ThreadPoolExecutor(max_workers=self.download_limit) as executor:
-                futures = [
-                    executor.submit(self.download, item, pbar)
-                    for item in self.to_download_list
-                ]
-                for future in as_completed(futures):
-                    if future.result() is not None:
-                        self.downloading_list.append(future.result())
+        ) as pbar, ThreadPoolExecutor(max_workers=self.download_limit) as executor:
+            futures = [
+                executor.submit(self.download, item, pbar)
+                for item in self.to_download_list
+            ]
+            for future in as_completed(futures):
+                if future.result() is not None:
+                    self.downloading_list.append(future.result())
         print("\n")
         self.save_data()
 
@@ -348,14 +369,14 @@ class HumbleApi:
             bundle_name = f"{item.date.date()} {slugify(item.bundle_name)}"
             item_name = slugify(item.name)
             filename = Path(
-                f"{root}/{item.platform} / {item.date.date().strftime('%Y')} /{bundle_name}/{item_name}/{extract_filename(item)}"
+                f"{root}/{item.platform} / {item.date.date().strftime('%Y')} /{bundle_name}/{item_name}/{extract_filename(item)}",
             )
 
             if filename.exists():
                 if item.md5 == md5sum(filename):
                     logger.warning(f"Moving orphaned file {filename.name}")
                     item2 = filename.parents[3].joinpath(
-                        "orphaned", *filename.parts[-4:]
+                        "orphaned", *filename.parts[-4:],
                     )
                     i = 1
                     # loop here to avoid rewriting files, *nix problem
@@ -372,19 +393,19 @@ class HumbleApi:
     def check_file(self, product, filename, pbar):
         if not filename.exists():
             logger.log(
-                "Missing", f"File missing: {filename.name} {human_size(product.size)}"
+                "Missing", f"File missing: {filename.name} {human_size(product.size)}",
             )
         else:
             md5 = md5sum(filename, pbar)
             if md5 == product.md5:
                 logger.success(f"File checked {filename.name}")
                 return True
-            else:
-                # file exist, but not correct md5 -> delete it
-                logger.error(
-                    f"File mismatch md5sum, deleting {product.name}, {filename}"
-                )
-                filename.unlink()
+            if self.keep_wrong_md5sum:
+                logger.info(f"Keeping {filename.name} even with wrong md5sum")
+                return True
+            # file exist, but not correct md5 -> delete it
+            logger.error(f"File mismatch md5sum, deleting {product.name}, {filename}")
+            filename.unlink()
         return False
 
     def download(self, item, pbar):
@@ -406,30 +427,37 @@ class HumbleApi:
             self.downloaded_size += item.size
             item.checked = True
             return item
+        try:
+            logger.debug(f"Download start for '{item.name}' {filename.name}")
+            info = download(
+                item.url,
+                filename,
+                item.size,
+                pbar,
+                keep_wrong_size=self.keep_wrong_size,
+            )
+            if info:
+                logger.success(
+                    f"Downloaded {filename.name} {human_size(item.size)}",
+                )
+        except ValueError:
+            logger.warning(f"Mismatch in reported size {filename.name}")
+        except FileNotFoundError:
+            logger.error("Probable error with 260 character path limit")
+        except ConnectionResetError:
+            logger.warning(f"Connection problem when getting {filename}")
         else:
-            try:
-                logger.debug(f"Download start for '{item.name}' {filename.name}")
-                info = download(item.url, filename, item.size, pbar)
-                if info:
-                    logger.success(
-                        f"Downloaded {filename.name} {human_size(item.size)}"
-                    )
-            except ValueError:
-                logger.warning(f"Mismatch in reported size {filename.name}")
-            except FileNotFoundError:
-                logger.error("Probable error with 260 character path limit")
-            except ConnectionResetError:
-                logger.warning(f"Connection problem when getting {filename}")
-            else:
-                if filename.exists():
-                    if item.size != filename.stat().st_size:
-                        logger.error(f"Deleting file with incorrect size {filename}")
-                        filename.unlink()
-                        return
-                    else:
-                        self.downloaded_size += item.size
-                        item.checked = False
-                    return item
+            if filename.exists():
+                if (
+                    item.size != filename.stat().st_size
+                    and not self.keep_wrong_size
+                ):
+                    logger.error(f"Deleting file with incorrect size {filename}")
+                    filename.unlink()
+                    return None
+                self.downloaded_size += item.size
+                item.checked = False
+                return item
 
     def save_data(self):
         to_dump = set(self.downloading_list).union(self.downloaded_list)
@@ -470,7 +498,7 @@ class Order:
                         self.extract_data(struct, items["platform"], name, machine_name)
 
     def extract_data(
-        self, struct: dict[str, Any], platform: str, name: str, machine_name: str
+        self, struct: dict[str, Any], platform: str, name: str, machine_name: str,
     ) -> None:
         try:
             url = struct["url"]["web"]
@@ -480,7 +508,6 @@ class Order:
         except KeyError:
             if machine_name not in self.name_exclusion:
                 logger.error(f"Problem with parsing {machine_name}")
-                pass
         else:
             if md5 not in self.md5_exclusion:
                 data = {
@@ -502,11 +529,11 @@ class Product:
         self.md5: str
         self.size: int
         self.name: str
-        for key in kwargs.keys():
+        for key in kwargs:
             setattr(self, key, kwargs[key])
         if hasattr(self, "hb_name"):  # this convert from old downloaded.yaml
             logger.debug(f"Converting old hb_name to new bundle_name for {self.name}")
-            setattr(self, "bundle_name", self.hb_name)
+            self.bundle_name = self.hb_name
             delattr(self, "hb_name")
 
     def __eq__(self, other: object) -> bool:

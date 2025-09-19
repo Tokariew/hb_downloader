@@ -44,21 +44,25 @@ Providing switches for download_limit and purchase_limit ignore default
 values from config.yaml file.
 
 ``` bash
-usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] platform [platform ...]
+usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] [-w] [-m] platform [platform ...]
 
 Download files from Humble Bundle, based on selected platform
 
 positional arguments:
-  platform              platform to download, valid platforms are: ['android', 'audio', 'ebook', 'linux',
-                        'mac', 'windows', 'video, other', 'nogames', 'all']
+  platform              platform to download, valid platforms are: ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video',
+                        'other', 'nogames', 'all']
 
 options:
   -h, --help            show this help message and exit
-  -l X, --download_limit X
+  -l, --download_limit X
                         Download X files in parallel
-  -n Y, --purchase_limit Y
+  -n, --purchase_limit Y
                         Download only from Y newest purchases, 0 for all --default
   -s, --smallest_first  Download smallest files first
+  -w, --keep_wrong_size
+                        Download files with wrong size and keep them
+  -m, --keep_wrong_md5sum
+                        keep files with wrong md5sum them
 ```
 
 You can specify multiple platforms to download, for example to download
@@ -94,6 +98,15 @@ purchased, so it recommended use is to update downloaded collection by
 newest purchased bundles not downloaded before. If purchase-limit option
 is omitted all previously downloaded files will have their hash
 recomputed which will slow down overall process of downloading.
+
+### Keep files flags
+
+Added flags to keep files with wrong reported sizes and hashes. Humble no longer
+provide md5sum on their websites, when downloading, so i stopped nagging them
+that sums and/or sizes are incorrect. So to keep downloading all books I added
+such flag.
+There are some files with wrong size, but correct hash, but most of them will
+have both wrong. So you probably want to use both flags.
 
 ### Trove
 

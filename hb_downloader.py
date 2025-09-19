@@ -402,7 +402,7 @@ class HumbleApi:
                 return True
             if self.keep_wrong_md5sum:
                 logger.info(f"Keeping {filename.name} even with wrong md5sum")
-                return True
+                return False # return false because i still want to mark them as not downloaded
             # file exist, but not correct md5 -> delete it
             logger.error(f"File mismatch md5sum, deleting {product.name}, {filename}")
             filename.unlink()
@@ -428,6 +428,8 @@ class HumbleApi:
             item.checked = True
             return item
         try:
+            if filename.exists():
+                return item
             logger.debug(f"Download start for '{item.name}' {filename.name}")
             info = download(
                 item.url,

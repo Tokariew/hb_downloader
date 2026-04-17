@@ -117,7 +117,6 @@ def create_parser() -> argparse.ArgumentParser:
         "platform",
         metavar="platform",
         type=str,
-        choices=platform_list,
         nargs="*",
         default=[],
         help=f"platform to download, valid platforms are: {platform_list}",
@@ -257,6 +256,12 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         if isinstance(platforms, str):
             platforms = [platforms]
     cfg.pop("platforms", None)  # ensure it never leaks into **cfg
+
+    # Validate platform names now that CLI and config have been merged.
+    valid = set(platform_list)
+    bad = [p for p in platforms if p not in valid]
+    if bad:
+        parser.error(f"invalid platform(s): {', '.join(bad)} (choose from {platform_list})")
 
     return platforms, cfg
 

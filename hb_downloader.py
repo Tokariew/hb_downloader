@@ -726,7 +726,11 @@ class Order:
             size = struct["file_size"]
             md5 = struct["md5"]
         except KeyError as e:
-            if machine_name not in self.name_exclusion:
+            # ASM (Humble App Store Manager) structs use a different delivery
+            # mechanism and never have a URL — skip them silently at DEBUG level.
+            if "asm_config" in struct or "asm_manifest" in struct:
+                logger.debug(f"Skipping ASM entry '{machine_name}' (Humble App delivery, no direct URL)")
+            elif machine_name not in self.name_exclusion:
                 logger.warning(
                     f"Skipping '{machine_name}' \u2014 incomplete download struct "
                     f"(missing key {e}). Available keys: {list(struct.keys())}"

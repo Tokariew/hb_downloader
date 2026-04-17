@@ -315,6 +315,22 @@ class TestOrder:
         # No product should be added because the struct is incomplete.
         assert len(order.products) == 0
 
+    def test_skips_asm_entries_silently(self):
+        # ASM structs (Humble App Store Manager) have asm_config/asm_manifest
+        # instead of a URL.  They should be skipped at DEBUG level with no WARNING.
+        asm_struct = {"asm_config": "...", "asm_manifest": "...", "human_size": "12 MB"}
+        products = [{"human_name": "My Game", "downloads": [
+            {"machine_name": "mygame_asm", "platform": "windows", "download_struct": [asm_struct]}
+        ]}]
+        order = self._make_order(products)
+        assert len(order.products) == 0
+        # Must not have emitted a WARNING for the ASM entry
+        warning_calls = [
+            str(c) for c in _logger_stub.warning.call_args_list
+            if "mygame_asm" in str(c)
+        ]
+        assert warning_calls == []
+
     def test_skips_missing_human_name(self):
         products = [{"downloads": [self._base_struct()]}]
         order = self._make_order(products)

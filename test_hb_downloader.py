@@ -537,3 +537,86 @@ class TestConfigureLogging:
             args, _ = mock_add.call_args
             assert args[0].startswith("hb_downloader_output_")
             assert args[0].endswith(".log")
+
+
+# ===========================================================================
+# parse_config
+# ===========================================================================
+
+class TestParseConfig:
+    """Tests for parse_config() – config-file reading and CLI-override logic."""
+
+    def _run(self, cfg_data, cli_overrides=None):
+        """Run parse_config with a mocked config file and given CLI args."""
+        defaults = dict(
+            platform=[], download_limit=[None], purchase_limit=[None],
+            smallest_first=False, keep_wrong_size=False, keep_wrong_md5sum=False,
+            skip_recheck=False, verbose=False, log_output=None, log_file=None,
+        )
+        if cli_overrides:
+            defaults.update(cli_overrides)
+        args_mock = MagicMock(**defaults)
+
+        mock_yaml = MagicMock()
+        mock_yaml.load.return_value = cfg_data
+
+        parser = hb.create_parser()
+        old_yaml = getattr(hb, "yaml", None)
+        hb.yaml = mock_yaml
+        try:
+            with patch("builtins.open", mock_open(read_data="")), \
+                 patch.object(parser, "parse_args", return_value=args_mock):
+                return hb.parse_config(parser)
+        finally:
+            if old_yaml is None:
+                del hb.yaml
+            else:
+                hb.yaml = old_yaml
+
+    def test_platforms_list_read_from_config(self):
+        platforms, _ = self._run({"session_cookie": "x", "platforms": ["linux", "ebook"]})
+        assert platforms == ["linux", "ebook"]
+
+    def test_platforms_string_normalised_to_list(self):
+        """platforms: all in YAML loads as a str; must become ['all']."""
+        platforms, _ = self._run({"session_cookie": "x", "platforms": "all"})
+        assert platforms == ["all"]
+
+    def test_cli_platform_overrides_config(self):
+        platforms, _ = self._run(
+            {"session_cookie": "x", "platforms": ["linux"]},
+            cli_overrides={"platform": ["windows"]},
+        )
+        assert platforms == ["windows"]
+
+    def test_platforms_not_leaked_into_cfg(self):
+        _, cfg = self._run({"session_cookie": "x", "platforms": ["linux"]})
+        assert "platforms" not in cfg
+
+    def test_verbose_default_false_when_absent(self):
+        _, cfg = self._run({"session_cookie": "x"})
+        assert cfg["verbose"] is False
+
+    def test_log_output_default_stdout_when_absent(self):
+        _, cfg = self._run({"session_cookie": "x"})
+        assert cfg["log_output"] == "stdout"
+
+    def test_cli_verbose_overrides_config_false(self):
+        _, cfg = self._run({"session_cookie": "x", "verbose": False},
+                           cli_overrides={"verbose": True})
+        assert cfg["verbose"] is True
+
+    def test_cli_log_output_overrides_config(self):
+        _, cfg = self._run({"session_cookie": "x"},
+                           cli_overrides={"log_output": "both"})
+        assert cfg["log_output"] == "both"
+
+    def test_cli_log_file_stored(self):
+        _, cfg = self._run({"session_cookie": "x"},
+                           cli_overrides={"log_file": "mylog.log"})
+        assert cfg["log_file"] == "mylog.log"
+
+    def test_legacy_trove_key_removed(self):
+        _, cfg = self._run({"session_cookie": "x", "trove": True})
+        assert "trove" not in cfg
+

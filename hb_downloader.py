@@ -118,7 +118,8 @@ def create_parser() -> argparse.ArgumentParser:
         metavar="platform",
         type=str,
         choices=platform_list,
-        nargs="+",
+        nargs="*",
+        default=[],
         help=f"platform to download, valid platforms are: {platform_list}",
     )
     parser.add_argument(
@@ -237,11 +238,14 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         cfg["log_file"] = args.log_file
     # log_file intentionally has no default here; None triggers auto-naming
 
-    # Platform: CLI wins over config; config list is the fallback
+    # Platform: CLI wins over config; config list is the fallback.
+    # A bare string in config (e.g. 'platforms: all') is normalised to a list.
     if args.platform:
         platforms = args.platform
     else:
         platforms = cfg.pop("platforms", [])
+        if isinstance(platforms, str):
+            platforms = [platforms]
     cfg.pop("platforms", None)  # ensure it never leaks into **cfg
 
     return platforms, cfg
@@ -742,6 +746,12 @@ if __name__ == "__main__":
     ]
     parser = create_parser()
     platforms, cfg = parse_config(parser)
+
+    if not platforms:
+        logger.critical(
+            "No platforms specified. Add 'platforms' to config.yaml or pass platform args on the CLI."
+        )
+        exit()
 
     verbose = cfg.pop("verbose", False)
     log_output = cfg.pop("log_output", "stdout")

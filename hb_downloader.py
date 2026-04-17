@@ -182,6 +182,12 @@ def create_parser() -> argparse.ArgumentParser:
         default=None,
         help="Log file name (default: hb_downloader_output_<datetime>.log)",
     )
+    parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Report size/MD5 mismatches and missing files without deleting or downloading anything",
+    )
     return parser
 
 
@@ -234,6 +240,9 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         cfg["keep_wrong_md5sum"] = True
     if args.skip_recheck:
         cfg["skip_recheck"] = True
+    if args.dry_run:
+        cfg["dry_run"] = True
+    cfg.setdefault("dry_run", False)
 
     # Logging options: CLI overrides config; config overrides built-in defaults
     if args.verbose:
@@ -332,6 +341,7 @@ class HumbleApi:
         keep_wrong_size: bool = False,
         keep_wrong_md5sum: bool = False,
         skip_recheck: bool = False,
+        dry_run: bool = False,
     ):
         self.download_limit = download_limit
         # purchase_limit=0 means "all purchases". Python's -0 == 0, so
@@ -342,6 +352,7 @@ class HumbleApi:
         self.keep_wrong_size = keep_wrong_size
         self.keep_wrong_md5sum = keep_wrong_md5sum
         self.skip_recheck = skip_recheck
+        self.dry_run = dry_run
 
         self.download_folder = Path(download_folder)
         self.download_folder.mkdir(exist_ok=True)
@@ -589,6 +600,8 @@ class HumbleApi:
                 f"(expected {human_size(product.size)} / {product.size} B, "
                 f"got {human_size(actual_size)} / {actual_size} B)"
             )
+            if self.dry_run:
+                return False
             if not self.keep_wrong_size:
                 logger.error(f"Deleting {filename.name} due to size mismatch")
                 filename.unlink()
@@ -608,6 +621,10 @@ class HumbleApi:
         if self.keep_wrong_md5sum:
             logger.info(f"Keeping {filename.name} even with wrong md5sum")
             # Return False so the item is not marked as fully verified.
+            return False
+
+        if self.dry_run:
+            logger.warning(f"MD5 mismatch for {filename.name} (expected {product.md5}, got {md5}) — dry run, not deleting")
             return False
 
         logger.error(f"File mismatch md5sum, deleting {product.name}, {filename}")
@@ -644,6 +661,9 @@ class HumbleApi:
             # do not re-download, just report it as present.
             if filename.exists():
                 return item
+            if self.dry_run:
+                logger.warning(f"Dry run: would download '{item.name}' ({filename.name})")
+                return None
             logger.info(f"Download start for '{item.name}' {filename.name}")
             info = download(
                 item.url,
@@ -828,6 +848,7 @@ if __name__ == "__main__":
     logger.info(f"  purchase_limit    : {'all' if not _pl else _pl}")
     logger.info(f"  smallest_first    : {cfg.get('smallest_first', False)}")
     logger.info(f"  skip_recheck      : {cfg.get('skip_recheck', False)}")
+    logger.info(f"  dry_run           : {cfg.get('dry_run', False)}")
     logger.info(f"  keep_wrong_size   : {cfg.get('keep_wrong_size', False)}")
     logger.info(f"  keep_wrong_md5sum : {cfg.get('keep_wrong_md5sum', False)}")
     logger.info(f"  verbose           : {verbose}")

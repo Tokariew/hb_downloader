@@ -355,11 +355,12 @@ class TestOrder:
 # ===========================================================================
 
 class TestCheckFile:
-    def _make_api(self, skip_recheck=False, keep_wrong_md5sum=False, keep_wrong_size=False):
+    def _make_api(self, skip_recheck=False, keep_wrong_md5sum=False, keep_wrong_size=False, dry_run=False):
         api = object.__new__(HumbleApi)
         api.skip_recheck = skip_recheck
         api.keep_wrong_md5sum = keep_wrong_md5sum
         api.keep_wrong_size = keep_wrong_size
+        api.dry_run = dry_run
         return api
 
     def _make_product(self, md5="correcthash", size=100):
@@ -430,6 +431,44 @@ class TestCheckFile:
         result = api.check_file(p, f, None)
         assert result is False   # not verified, but not deleted either
         assert f.exists()
+
+    def test_dry_run_size_mismatch_does_not_delete(self, tmp_path):
+        f = tmp_path / "file.bin"
+        f.write_bytes(b"x" * 50)
+        api = self._make_api(dry_run=True)
+        p = self._make_product(size=100)
+        result = api.check_file(p, f, None)
+        assert f.exists()  # must NOT be deleted in dry-run mode
+        assert result is False
+
+    def test_dry_run_md5_mismatch_does_not_delete(self, tmp_path):
+        data = b"hello"
+        f = tmp_path / "file.bin"
+        f.write_bytes(data)
+        api = self._make_api(dry_run=True)
+        p = self._make_product(md5="wronghash", size=len(data))
+        result = api.check_file(p, f, None)
+        assert f.exists()  # must NOT be deleted in dry-run mode
+        assert result is False
+
+    def test_dry_run_size_mismatch_does_not_delete(self, tmp_path):
+        f = tmp_path / "file.bin"
+        f.write_bytes(b"x" * 50)
+        api = self._make_api(dry_run=True)
+        p = self._make_product(size=100)
+        result = api.check_file(p, f, None)
+        assert f.exists()  # must NOT be deleted in dry-run mode
+        assert result is False
+
+    def test_dry_run_md5_mismatch_does_not_delete(self, tmp_path):
+        data = b"hello"
+        f = tmp_path / "file.bin"
+        f.write_bytes(data)
+        api = self._make_api(dry_run=True)
+        p = self._make_product(md5="wronghash", size=len(data))
+        result = api.check_file(p, f, None)
+        assert f.exists()  # must NOT be deleted in dry-run mode
+        assert result is False
 
 
 # ===========================================================================

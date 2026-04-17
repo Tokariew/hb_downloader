@@ -6,6 +6,7 @@ smallest_first:  false
 keep_wrong_size: false
 keep_wrong_md5sum: false
 skip_recheck:    false
+dry_run:         false
 # platforms:            # list of platforms to download (overrides -p CLI flag)
 #   - linux
 #   - ebook

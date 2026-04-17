@@ -44,25 +44,33 @@ Providing switches for download_limit and purchase_limit ignore default
 values from config.yaml file.
 
 ``` bash
-usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] [-w] [-m] platform [platform ...]
+usage: hb_downloader.py [-h] [-l X] [-n Y] [-s] [-w] [-m] [-r] [-v] [-d]
+                        [--log-output {stdout,file,both}] [--log-file FILENAME]
+                        [--log-dir DIR]
+                        [platform ...]
 
 Download files from Humble Bundle, based on selected platform
 
 positional arguments:
-  platform              platform to download, valid platforms are: ['android', 'audio', 'ebook', 'linux', 'mac', 'windows', 'video',
-                        'other', 'nogames', 'all']
+  platform              platform to download, valid platforms are: ['android', 'audio',
+                        'ebook', 'linux', 'mac', 'windows', 'video', 'other', 'nogames', 'all']
 
 options:
-  -h, --help            show this help message and exit
-  -l, --download_limit X
-                        Download X files in parallel
-  -n, --purchase_limit Y
-                        Download only from Y newest purchases, 0 for all --default
-  -s, --smallest_first  Download smallest files first
-  -w, --keep_wrong_size
-                        Download files with wrong size and keep them
-  -m, --keep_wrong_md5sum
-                        keep files with wrong md5sum them
+  -h, --help                        show this help message and exit
+  -l X, --download_limit X          Download X files in parallel
+  -n Y, --purchase_limit Y          Download only from Y newest purchases, 0 for all (default)
+  -s, --smallest_first              Download smallest files first
+  -w, --keep_wrong_size             Download files with wrong size and keep them
+  -m, --keep_wrong_md5sum           Keep files with wrong md5sum
+  -r, --skip_recheck                Skip MD5 verification for files that already exist
+                                    with the correct size
+  -v, --verbose                     Report each item as it is processed
+  -d, --dry-run                     Report size/MD5 mismatches and missing files without
+                                    deleting or downloading anything
+  --log-output {stdout,file,both}   Where to write log output (default: stdout)
+  --log-file FILENAME               Log file name (default: hb_downloader_output_<datetime>.log)
+  --log-dir DIR                     Directory for log files (default: logs/ under the
+                                    script directory)
 ```
 
 You can specify multiple platforms to download, for example to download
@@ -108,20 +116,50 @@ such flag.
 There are some files with wrong size, but correct hash, but most of them will
 have both wrong. So you probably want to use both flags.
 
-### Trove
+### Dry run
 
-In 2020-11-01 ability to download trove games was added.
+Use `-d` / `--dry-run` to audit your library without making any changes:
 
-By default script don't try to download trove games, it can be enable in
-config file or by using --trove switch. Trove games are inside
-windows/linux/mac folder in *2010-11-24 trove* directory. If reported
-md5sum for trove games is identical to games from other purchase, then
-it will be put in corresponding purchase folder and not trove directory.
+``` bash
+python hb_downloader.py -d all
+```
 
-**Script don't have ability to download only trove games**
+Dry run reports missing files, size mismatches, and MD5 failures but never
+deletes, downloads, or updates the state YAML files.
 
-Trove support was dropped on 2022-02-15, because Humble Bundle no longer
-provide it.
+### Logging
+
+By default logs are written to stdout only. Use `--log-output` to redirect:
+
+``` bash
+# Write to both terminal and a dated log file under logs/
+python hb_downloader.py --log-output both all
+
+# Write to a file only, in a custom directory
+python hb_downloader.py --log-output file --log-dir /var/log/hb ebook
+```
+
+All three logging options can also be set in `config.yaml`:
+
+``` yaml
+log_output: both
+log_dir: /path/to/logs
+log_file: my_run.log   # optional; auto-named by date/time when omitted
+```
+
+### State files
+
+The script maintains three YAML tracking files inside `download_folder`:
+
+| File | Purpose |
+|------|---------|
+| `hb_downloader_downloaded.yaml` | Products verified or downloaded in this session |
+| `hb_downloader_not-downloaded.yaml` | Products not yet downloaded |
+| `hb_downloader_orphaned.yaml` | Products removed from the HB catalogue |
+
+Keeping the state files next to the downloaded content means each
+`download_folder` is self-contained — you can point multiple runs at
+different folders without them interfering with each other.
 
 ### podman/docker
 

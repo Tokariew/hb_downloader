@@ -6,3 +6,4 @@ dist/
 downloaded.yaml
 orphaned.yaml
 not-downloaded.yaml
+*.log

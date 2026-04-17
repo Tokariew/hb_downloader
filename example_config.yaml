@@ -13,3 +13,4 @@ dry_run:         false
 verbose:         false
 # log_output: stdout   # where to write logs: stdout (default), file, or both
 # log_file: hb_downloader_output.log  # custom log file name (default: hb_downloader_output_<datetime>.log)
+# log_dir: /path/to/logs              # directory for log files (default: logs/ under the script directory)

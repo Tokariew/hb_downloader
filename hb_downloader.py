@@ -32,9 +32,11 @@ logger.add(
     format="<level>{level}:</level> {message}\x1b[K",
 )
 
-# Custom level for items whose local file is simply absent (between WARNING=30
-# and DEBUG=10, so it shows under WARNING by default).
+# Custom level for items whose local file is simply absent.
 logger.level("Missing", no=21, color="<yellow>")
+# Custom level for always-visible status messages (startup config report etc.).
+# no=25 sits between Missing and WARNING so both are shown at the default level.
+logger.level("STATUS", no=25, color="<cyan>")
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +185,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Log file name (default: hb_downloader_output_<datetime>.log)",
     )
     parser.add_argument(
+        "--log-dir",
+        metavar="DIR",
+        default=None,
+        help="Directory for log files (default: logs/ under the script directory)",
+    )
+    parser.add_argument(
         "-d",
         "--dry-run",
         action="store_true",
@@ -257,6 +265,10 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         cfg["log_file"] = args.log_file
     # log_file intentionally has no default here; None triggers auto-naming
 
+    if args.log_dir is not None:
+        cfg["log_dir"] = args.log_dir
+    cfg.setdefault("log_dir", None)  # None = use default (script_dir/logs)
+
     # Platform: CLI wins over config; config list is the fallback.
     # A bare string in config (e.g. 'platforms: all') is normalised to a list.
     if args.platform:
@@ -276,15 +288,21 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
     return platforms, cfg
 
 
-def configure_logging(verbose: bool, log_output: str, log_file: Optional[str]) -> None:
+def configure_logging(
+    verbose: bool,
+    log_output: str,
+    log_file: Optional[str],
+    log_dir: Optional[str] = None,
+) -> None:
     """Replace the bootstrap logging sink with the user-configured one(s).
 
     verbose=True lowers the level to INFO, showing per-item progress messages.
     log_output controls whether logs go to stdout, a file, or both.
+    log_dir sets the directory for log files; defaults to logs/ under the script directory.
     When writing to a file-only sink the tqdm progress bar still renders on
     the terminal because tqdm writes directly to stderr/stdout.
     """
-    level = "INFO" if verbose else "WARNING"
+    level = "INFO" if verbose else "Missing"
     stdout_format = "<level>{level}:</level> {message}\x1b[K"
     file_format = "{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}"
 
@@ -294,10 +312,13 @@ def configure_logging(verbose: bool, log_output: str, log_file: Optional[str]) -
         logger.add(stdout, level=level, colorize=True, format=stdout_format)
 
     if log_output in ("file", "both"):
+        resolved_log_dir = Path(log_dir) if log_dir else Path(__file__).parent / "logs"
+        resolved_log_dir.mkdir(parents=True, exist_ok=True)
         if log_file is None:
             log_file = f"hb_downloader_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-        logger.add(log_file, level=level, colorize=False, format=file_format)
-        logger.info(f"Logging to file: {log_file}")
+        log_path = resolved_log_dir / log_file
+        logger.add(str(log_path), level=level, colorize=False, format=file_format)
+        logger.info(f"Logging to file: {log_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +378,12 @@ class HumbleApi:
         self.download_folder = Path(download_folder)
         self.download_folder.mkdir(exist_ok=True)
 
+        # State YAML files live in the download folder so each destination
+        # folder maintains its own independent tracking state.
+        self._downloaded_yaml = self.download_folder / "hb_downloader_downloaded.yaml"
+        self._orphaned_yaml = self.download_folder / "hb_downloader_orphaned.yaml"
+        self._not_downloaded_yaml = self.download_folder / "hb_downloader_not-downloaded.yaml"
+
         self.platforms = platforms
 
         self.session = requests.Session()
@@ -366,7 +393,7 @@ class HumbleApi:
 
         # Load the persisted list of already-processed products, if any.
         try:
-            with open("downloaded.yaml") as yamlfile:
+            with open(self._downloaded_yaml) as yamlfile:
                 tmp = yaml.load(yamlfile)
                 self.downloaded_list = [Product(**item) for item in tmp]
                 # Items marked checked=True are fully verified and skipped entirely.
@@ -497,7 +524,8 @@ class HumbleApi:
 
         if not self.to_download_list:
             logger.warning("Nothing to download — all files already verified or no matches.")
-            self.save_data()
+            if not self.dry_run:
+                self.save_data()
             return
 
         item_counter = 0
@@ -538,7 +566,8 @@ class HumbleApi:
                 if future.result() is not None:
                     self.downloading_list.append(future.result())
         print("\n")
-        self.save_data()
+        if not self.dry_run:
+            self.save_data()
 
     def clean_orphan(self):
         """Move files for orphaned products into an 'orphaned' subdirectory.
@@ -698,9 +727,9 @@ class HumbleApi:
     def save_data(self):
         """Persist download state to YAML files for future runs."""
         completed = set(self.downloading_list).union(self.downloaded_list)
-        dump_data(completed, "downloaded.yaml")
-        dump_data(self.orphaned_set, "orphaned.yaml")
-        dump_data(self.all_set.difference(completed), "not-downloaded.yaml")
+        dump_data(completed, self._downloaded_yaml)
+        dump_data(self.orphaned_set, self._orphaned_yaml)
+        dump_data(self.all_set.difference(completed), self._not_downloaded_yaml)
 
 
 # ---------------------------------------------------------------------------
@@ -801,10 +830,11 @@ class Product:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Product):
             return NotImplemented
-        return self.md5 == other.md5 and self.size == other.size
+        return getattr(self, "md5", None) == getattr(other, "md5", None) and \
+               getattr(self, "size", None) == getattr(other, "size", None)
 
     def __hash__(self) -> int:
-        return hash(f"{self.md5}{self.size}")
+        return hash(f"{getattr(self, 'md5', '')}{getattr(self, 'size', 0)}")
 
 
 # ---------------------------------------------------------------------------
@@ -837,24 +867,31 @@ if __name__ == "__main__":
     verbose = cfg.pop("verbose", False)
     log_output = cfg.pop("log_output", "stdout")
     log_file = cfg.pop("log_file", None)
-    configure_logging(verbose, log_output, log_file)
+    log_dir = cfg.pop("log_dir", None)
+    configure_logging(verbose, log_output, log_file, log_dir)
 
     # Report the effective configuration so the user can verify what will run.
-    logger.info("Active configuration:")
-    logger.info(f"  download_folder   : {cfg.get('download_folder', '.')}")
-    logger.info(f"  platforms         : {', '.join(platforms) if platforms else 'all'}")
-    logger.info(f"  download_limit    : {cfg.get('download_limit', 6)}")
     _pl = cfg.get('purchase_limit', 0)
-    logger.info(f"  purchase_limit    : {'all' if not _pl else _pl}")
-    logger.info(f"  smallest_first    : {cfg.get('smallest_first', False)}")
-    logger.info(f"  skip_recheck      : {cfg.get('skip_recheck', False)}")
-    logger.info(f"  dry_run           : {cfg.get('dry_run', False)}")
-    logger.info(f"  keep_wrong_size   : {cfg.get('keep_wrong_size', False)}")
-    logger.info(f"  keep_wrong_md5sum : {cfg.get('keep_wrong_md5sum', False)}")
-    logger.info(f"  verbose           : {verbose}")
-    logger.info(f"  log_output        : {log_output}")
+    _cfg_lines = [
+        "Active configuration:",
+        f"  download_folder   : {cfg.get('download_folder', '.')}",
+        f"  platforms         : {', '.join(platforms) if platforms else 'all'}",
+        f"  download_limit    : {cfg.get('download_limit', 6)}",
+        f"  purchase_limit    : {'all' if not _pl else _pl}",
+        f"  smallest_first    : {cfg.get('smallest_first', False)}",
+        f"  skip_recheck      : {cfg.get('skip_recheck', False)}",
+        f"  dry_run           : {cfg.get('dry_run', False)}",
+        f"  keep_wrong_size   : {cfg.get('keep_wrong_size', False)}",
+        f"  keep_wrong_md5sum : {cfg.get('keep_wrong_md5sum', False)}",
+        f"  verbose           : {verbose}",
+        f"  log_output        : {log_output}",
+    ]
+    if log_output in ("file", "both"):
+        _resolved_log_dir = Path(log_dir) if log_dir else Path(__file__).parent / "logs"
+        _cfg_lines.append(f"  log_dir           : {_resolved_log_dir}")
     if log_file:
-        logger.info(f"  log_file          : {log_file}")
+        _cfg_lines.append(f"  log_file          : {log_file}")
+    logger.log("STATUS", "\n".join(_cfg_lines))
 
     try:
         cookie = cfg["session_cookie"]

@@ -484,6 +484,11 @@ class HumbleApi:
             f"Queue: {self.total_items} file(s), {self.human_size} total"
         )
 
+        if not self.to_download_list:
+            logger.warning("Nothing to download — all files already verified or no matches.")
+            self.save_data()
+            return
+
         item_counter = 0
         counter_lock = threading.Lock()
 
@@ -726,10 +731,14 @@ class Order:
             size = struct["file_size"]
             md5 = struct["md5"]
         except KeyError as e:
-            # ASM (Humble App Store Manager) structs use a different delivery
-            # mechanism and never have a URL — skip them silently at DEBUG level.
+            # Several struct types have no direct download URL and should be
+            # silently skipped at DEBUG level — they are expected from HB's API.
             if "asm_config" in struct or "asm_manifest" in struct:
                 logger.debug(f"Skipping ASM entry '{machine_name}' (Humble App delivery, no direct URL)")
+            elif "external_link" in struct:
+                logger.debug(f"Skipping '{machine_name}' (external/Steam key redemption link, no file to download)")
+            elif "hd_stream_url" in struct or "sd_stream_url" in struct:
+                logger.debug(f"Skipping '{machine_name}' (streaming video only, no file to download)")
             elif machine_name not in self.name_exclusion:
                 logger.warning(
                     f"Skipping '{machine_name}' \u2014 incomplete download struct "

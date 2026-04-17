@@ -698,9 +698,12 @@ class Order:
             url = struct["url"]["web"]
             size = struct["file_size"]
             md5 = struct["md5"]
-        except KeyError:
+        except KeyError as e:
             if machine_name not in self.name_exclusion:
-                logger.error(f"Problem with parsing {machine_name}")
+                logger.warning(
+                    f"Skipping '{machine_name}' \u2014 incomplete download struct "
+                    f"(missing key {e}). Available keys: {list(struct.keys())}"
+                )
         else:
             if md5 not in self.md5_exclusion:
                 self.products.append(Product(

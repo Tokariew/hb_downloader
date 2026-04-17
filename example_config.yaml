@@ -2,6 +2,10 @@ download_folder: '.'
 session_cookie:  ''
 download_limit:  4
 purchase_limit:  0
-smallest_first: false
+smallest_first:  false
 keep_wrong_size: false
 keep_wrong_md5sum: false
+skip_recheck:    false
+verbose:         false
+# log_output: stdout   # where to write logs: stdout (default), file, or both
+# log_file: hb_downloader_output.log  # custom log file name (default: hb_downloader_output_<datetime>.log)

@@ -8,7 +8,7 @@ from json import JSONDecodeError
 from math import floor, log2
 from pathlib import Path
 from sys import exit, stdout
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import requests
 from loguru import logger
@@ -128,6 +128,30 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="keep files with wrong md5sum them",
     )
+    parser.add_argument(
+        "-r",
+        "--skip_recheck",
+        action="store_true",
+        help="Skip MD5 verification for files that already exist with the correct size",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Report each item as it is processed",
+    )
+    parser.add_argument(
+        "--log-output",
+        choices=["stdout", "file", "both"],
+        default=None,
+        help="Where to write log output: stdout (default), file, or both",
+    )
+    parser.add_argument(
+        "--log-file",
+        metavar="FILENAME",
+        default=None,
+        help="Log file name (default: hb_downloader_output_<datetime>.log)",
+    )
     return parser
 
 
@@ -158,7 +182,31 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         cfg["keep_wrong_size"] = True
     if parser.parse_args().keep_wrong_md5sum:
         cfg["keep_wrong_md5sum"] = True
+    if parser.parse_args().skip_recheck:
+        cfg["skip_recheck"] = True
+    if parser.parse_args().verbose:
+        cfg["verbose"] = True
+    cfg.setdefault("verbose", False)
+    if parser.parse_args().log_output is not None:
+        cfg["log_output"] = parser.parse_args().log_output
+    cfg.setdefault("log_output", "stdout")
+    if parser.parse_args().log_file is not None:
+        cfg["log_file"] = parser.parse_args().log_file
     return platforms, cfg
+
+
+def configure_logging(verbose: bool, log_output: str, log_file: Optional[str]) -> None:
+    level = "INFO" if verbose else "WARNING"
+    stdout_format = "<level>{level}:</level> {message}\x1b[K"
+    file_format = "{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}"
+    logger.remove()
+    if log_output in ("stdout", "both"):
+        logger.add(stdout, level=level, colorize=True, format=stdout_format)
+    if log_output in ("file", "both"):
+        if log_file is None:
+            log_file = f"hb_downloader_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        logger.add(log_file, level=level, colorize=False, format=file_format)
+        logger.info(f"Logging to file: {log_file}")
 
 
 def dump_data(to_dump: Any, filepath: Path) -> None:
@@ -189,12 +237,14 @@ class HumbleApi:
         session_cookie: str = "",
         keep_wrong_size: bool = False,
         keep_wrong_md5sum: bool = False,
+        skip_recheck: bool = False,
     ):
         self.download_limit = download_limit
         self.purchase_limit = purchase_limit
         self.reverse_order = not smallest_first
         self.keep_wrong_size = keep_wrong_size
         self.keep_wrong_md5sum = keep_wrong_md5sum
+        self.skip_recheck = skip_recheck
 
         self.download_folder = Path(download_folder)
         self.download_folder.mkdir(exist_ok=True)
@@ -398,20 +448,35 @@ class HumbleApi:
             logger.log(
                 "Missing", f"File missing: {filename.name} {human_size(product.size)}",
             )
-        else:
-            md5 = md5sum(filename, pbar)
-            if md5 == product.md5:
-                logger.success(f"File checked {filename.name}")
-                return True
-            if self.keep_wrong_md5sum:
-                logger.info(f"Keeping {filename.name} even with wrong md5sum")
-                return False # return false because i still want to mark them as not downloaded
-            # file exist, but not correct md5 -> delete it
-            logger.error(f"File mismatch md5sum, deleting {product.name}, {filename}")
+            return False
+
+        actual_size = filename.stat().st_size
+        if actual_size != product.size:
+            logger.error(
+                f"File size mismatch for {filename.name} "
+                f"(expected {human_size(product.size)}, got {human_size(actual_size)}), deleting"
+            )
             filename.unlink()
+            return False
+
+        if self.skip_recheck:
+            logger.info(f"Skipping MD5 check for {filename.name} (--skip-recheck)")
+            return True
+
+        md5 = md5sum(filename, pbar)
+        if md5 == product.md5:
+            logger.success(f"File checked {filename.name}")
+            return True
+        if self.keep_wrong_md5sum:
+            logger.info(f"Keeping {filename.name} even with wrong md5sum")
+            return False
+        # file exists but md5 is wrong -> delete it
+        logger.error(f"File mismatch md5sum, deleting {product.name}, {filename}")
+        filename.unlink()
         return False
 
     def download(self, item, pbar):
+        logger.info(f"Processing: '{item.name}' [{item.platform}] {human_size(item.size)}")
         name = slugify(item.bundle_name)
         name = item.date.strftime("%Y-%m-%d ") + name
         directory = (
@@ -433,7 +498,7 @@ class HumbleApi:
         try:
             if filename.exists():
                 return item
-            logger.debug(f"Download start for '{item.name}' {filename.name}")
+            logger.info(f"Download start for '{item.name}' {filename.name}")
             info = download(
                 item.url,
                 filename,
@@ -567,6 +632,11 @@ if __name__ == "__main__":
     ]
     parser = create_parser()
     platforms, cfg = parse_config(parser)
+
+    verbose = cfg.pop("verbose", False)
+    log_output = cfg.pop("log_output", "stdout")
+    log_file = cfg.pop("log_file", None)
+    configure_logging(verbose, log_output, log_file)
 
     try:
         cookie = cfg["session_cookie"]

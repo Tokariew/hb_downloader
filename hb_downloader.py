@@ -47,7 +47,8 @@ def md5sum(filepath: Path, pbar=None, blocksize: int = 65536) -> str:
                     pbar.update(len(block))
         return filehash.hexdigest()
     except OSError:
-        logger.critical(f"The hell: {filepath}")
+        logger.critical(f"Could not read file for MD5: {filepath}")
+        return None
 
 
 def download(
@@ -59,11 +60,13 @@ def download(
     keep_wrong_size: bool = False,
 ) -> bool:
     with requests.get(urllink, stream=True) as r:
-        total_length = int(r.headers.get("content-length"))  # type: ignore
-        if total_length != reported_size:
-            if not keep_wrong_size:
+        content_length = r.headers.get("content-length")
+        if content_length is not None:
+            total_length = int(content_length)
+            if total_length != reported_size and not keep_wrong_size:
                 raise ValueError
-                return False
+        else:
+            logger.warning(f"No Content-Length header for {filepath.name}, skipping size check")
         with open(filepath, "wb") as f:
             for chunk in r.iter_content(chunk_size=chunk_size):
                 f.write(chunk)

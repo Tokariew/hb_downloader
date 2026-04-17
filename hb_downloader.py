@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from json import JSONDecodeError
@@ -479,6 +480,13 @@ class HumbleApi:
         """Move orphaned files then download/verify all queued products in parallel."""
         self.clean_orphan()
 
+        logger.info(
+            f"Queue: {self.total_items} file(s), {self.human_size} total"
+        )
+
+        item_counter = 0
+        counter_lock = threading.Lock()
+
         with tqdm(
             unit="B",
             unit_divisor=1024,
@@ -486,9 +494,28 @@ class HumbleApi:
             total=self.total_size,
             desc="Downloading",
             dynamic_ncols=True,
-        ) as pbar, ThreadPoolExecutor(max_workers=self.download_limit) as executor:
+            position=0,
+        ) as byte_pbar, tqdm(
+            total=self.total_items,
+            desc="Files     ",
+            unit="file",
+            dynamic_ncols=True,
+            position=1,
+            leave=True,
+        ) as item_pbar, ThreadPoolExecutor(max_workers=self.download_limit) as executor:
+
+            def _download_and_track(item):
+                nonlocal item_counter
+                short_name = f"{item.name[:30]}…" if len(item.name) > 30 else item.name
+                byte_pbar.set_postfix_str(f"{short_name} [{item.platform}]", refresh=False)
+                result = self.download(item, byte_pbar)
+                with counter_lock:
+                    item_counter += 1
+                    item_pbar.update(1)
+                return result
+
             futures = [
-                executor.submit(self.download, item, pbar)
+                executor.submit(_download_and_track, item)
                 for item in self.to_download_list
             ]
             for future in as_completed(futures):

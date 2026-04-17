@@ -339,10 +339,11 @@ class TestOrder:
 # ===========================================================================
 
 class TestCheckFile:
-    def _make_api(self, skip_recheck=False, keep_wrong_md5sum=False):
+    def _make_api(self, skip_recheck=False, keep_wrong_md5sum=False, keep_wrong_size=False):
         api = object.__new__(HumbleApi)
         api.skip_recheck = skip_recheck
         api.keep_wrong_md5sum = keep_wrong_md5sum
+        api.keep_wrong_size = keep_wrong_size
         return api
 
     def _make_product(self, md5="correcthash", size=100):
@@ -360,11 +361,22 @@ class TestCheckFile:
     def test_size_mismatch_deletes_and_returns_false(self, tmp_path):
         f = tmp_path / "file.bin"
         f.write_bytes(b"x" * 50)
-        api = self._make_api()
+        api = self._make_api(keep_wrong_size=False)
         p = self._make_product(size=100)
         result = api.check_file(p, f, None)
         assert result is False
         assert not f.exists()
+
+    def test_size_mismatch_kept_when_keep_wrong_size(self, tmp_path):
+        data = b"x" * 50
+        f = tmp_path / "file.bin"
+        f.write_bytes(data)
+        # Wrong size but wrong md5 too — keep_wrong_size keeps the file
+        api = self._make_api(keep_wrong_size=True, keep_wrong_md5sum=True)
+        p = self._make_product(size=100, md5="wronghash")
+        result = api.check_file(p, f, None)
+        assert f.exists()  # must NOT be deleted
+        assert result is False  # not fully verified
 
     def test_skip_recheck_correct_size_returns_true(self, tmp_path):
         data = b"x" * 100

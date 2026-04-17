@@ -552,12 +552,16 @@ class HumbleApi:
 
         actual_size = filename.stat().st_size
         if actual_size != product.size:
-            logger.error(
+            logger.warning(
                 f"File size mismatch for {filename.name} "
-                f"(expected {human_size(product.size)}, got {human_size(actual_size)}), deleting"
+                f"(expected {human_size(product.size)} / {product.size} B, "
+                f"got {human_size(actual_size)} / {actual_size} B)"
             )
-            filename.unlink()
-            return False
+            if not self.keep_wrong_size:
+                logger.error(f"Deleting {filename.name} due to size mismatch")
+                filename.unlink()
+                return False
+            # keep_wrong_size=True: fall through to MD5 check
 
         # Size is correct; skip the expensive MD5 read if requested.
         if self.skip_recheck:

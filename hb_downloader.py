@@ -192,18 +192,28 @@ def create_parser() -> argparse.ArgumentParser:
 def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, Any]]:
     """Load config.yaml and merge CLI overrides on top.
 
+    Config files are resolved relative to the script's own directory so the
+    program works regardless of the working directory it is launched from.
+
     CLI flags always win over config-file values.  If config.yaml is absent
     or empty, example_config.yaml is copied in its place and the program
     exits so the user can fill it in.
     """
+    script_dir = Path(__file__).parent
+    config_path = script_dir / "config.yaml"
+    example_path = script_dir / "example_config.yaml"
+
     try:
-        with open("config.yaml") as yamlfile:
+        with open(config_path) as yamlfile:
             cfg = yaml.load(yamlfile)
             _ = cfg.keys()  # raises AttributeError if file is empty
     except (FileNotFoundError, AttributeError):
-        Path("config.yaml").write_text(Path("example_config.yaml").read_text())
-        logger.warning("No valid config file, creating default.")
-        logger.warning()
+        try:
+            config_path.write_text(example_path.read_text())
+            logger.warning(f"No config.yaml found — created a default at {config_path}")
+            logger.warning("Edit it to add your session_cookie, then re-run.")
+        except FileNotFoundError:
+            logger.critical(f"Neither config.yaml nor example_config.yaml found in {script_dir}")
         exit()
 
     # Drop legacy key no longer used
@@ -748,10 +758,9 @@ if __name__ == "__main__":
     platforms, cfg = parse_config(parser)
 
     if not platforms:
-        logger.critical(
-            "No platforms specified. Add 'platforms' to config.yaml or pass platform args on the CLI."
+        parser.error(
+            "no platforms specified — pass them on the CLI or add 'platforms' to config.yaml"
         )
-        exit()
 
     verbose = cfg.pop("verbose", False)
     log_output = cfg.pop("log_output", "stdout")

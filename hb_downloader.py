@@ -237,7 +237,13 @@ def parse_config(parser: argparse.ArgumentParser) -> Tuple[List[str], dict[str, 
         cfg["log_file"] = args.log_file
     # log_file intentionally has no default here; None triggers auto-naming
 
-    platforms = args.platform
+    # Platform: CLI wins over config; config list is the fallback
+    if args.platform:
+        platforms = args.platform
+    else:
+        platforms = cfg.pop("platforms", [])
+    cfg.pop("platforms", None)  # ensure it never leaks into **cfg
+
     return platforms, cfg
 
 
@@ -736,11 +742,27 @@ if __name__ == "__main__":
     ]
     parser = create_parser()
     platforms, cfg = parse_config(parser)
-    configure_logging(
-        cfg.pop("verbose", False),
-        cfg.pop("log_output", "stdout"),
-        cfg.pop("log_file", None),
-    )
+
+    verbose = cfg.pop("verbose", False)
+    log_output = cfg.pop("log_output", "stdout")
+    log_file = cfg.pop("log_file", None)
+    configure_logging(verbose, log_output, log_file)
+
+    # Report the effective configuration so the user can verify what will run.
+    logger.info("Active configuration:")
+    logger.info(f"  download_folder   : {cfg.get('download_folder', '.')}")
+    logger.info(f"  platforms         : {', '.join(platforms) if platforms else 'all'}")
+    logger.info(f"  download_limit    : {cfg.get('download_limit', 6)}")
+    _pl = cfg.get('purchase_limit', 0)
+    logger.info(f"  purchase_limit    : {'all' if not _pl else _pl}")
+    logger.info(f"  smallest_first    : {cfg.get('smallest_first', False)}")
+    logger.info(f"  skip_recheck      : {cfg.get('skip_recheck', False)}")
+    logger.info(f"  keep_wrong_size   : {cfg.get('keep_wrong_size', False)}")
+    logger.info(f"  keep_wrong_md5sum : {cfg.get('keep_wrong_md5sum', False)}")
+    logger.info(f"  verbose           : {verbose}")
+    logger.info(f"  log_output        : {log_output}")
+    if log_file:
+        logger.info(f"  log_file          : {log_file}")
 
     try:
         cookie = cfg["session_cookie"]

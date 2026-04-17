@@ -6,6 +6,9 @@ smallest_first:  false
 keep_wrong_size: false
 keep_wrong_md5sum: false
 skip_recheck:    false
+# platforms:            # list of platforms to download (overrides -p CLI flag)
+#   - linux
+#   - ebook
 verbose:         false
 # log_output: stdout   # where to write logs: stdout (default), file, or both
 # log_file: hb_downloader_output.log  # custom log file name (default: hb_downloader_output_<datetime>.log)

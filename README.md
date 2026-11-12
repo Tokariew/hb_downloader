@@ -1,5 +1,12 @@
 # hb_downloader
 
+## Archiving
+
+After this week changes on Humble Bundle site, this script stopped working.
+I don't have currently energy to check how to get bundle info / library data,
+and having previously over hundred items in library with "broken" md5sum/size
+don't give me hope, they will maintain it.
+
 Simple script to download purchases from humble bundle account.
 
 By default, script download multiple files at once, starting with the
